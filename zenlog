@@ -141,6 +141,16 @@ zenlog_remove_marker() {
   echo $_zenlog_remove_marker
 }
 
+_zenlog_pause_marker=$(echo -e '\e[0m\e[6m\e[00000m')
+zenlog_pause_marker() {
+  echo $_zenlog_pause_marker
+}
+
+_zenlog_resume_marker=$(echo -e '\e[0m\e[7m\e[00000m')
+zenlog_resume_marker() {
+  echo $_zenlog_resume_marker
+}
+
 # execute command without logging output.
 zenlog_nolog() {
   echo -en '\e[0m\e[2m\e[00000m'
@@ -166,7 +176,7 @@ in_zenlog() {
   [[ "$ZENLOG_TTY" == $(tty) ]]
 }
 
-_zenlog_fail_if_not_in_zenlog() {
+zenlog_fail_if_not_in_zenlog() {
   if ! in_zenlog ; then
     echo "zenlog: Error: not in zenlog." 1>&2
     return 1
@@ -175,7 +185,7 @@ _zenlog_fail_if_not_in_zenlog() {
 }
 
 zenlog_history() {
-  _zenlog_fail_if_not_in_zenlog || return 1
+  zenlog_fail_if_not_in_zenlog || return 1
 
   local pid=$ZENLOG_PID
   local type="san"
@@ -268,19 +278,19 @@ zenlog_open_viewer() {
 }
 
 zenlog_open_last_log() {
-  _zenlog_fail_if_not_in_zenlog || return 1
+  zenlog_fail_if_not_in_zenlog || return 1
 
   zenlog_open_viewer "$(zenlog_last_log "${@}")"
 }
 
 zenlog_cat_last_log() {
-  _zenlog_fail_if_not_in_zenlog || return 1
+  zenlog_fail_if_not_in_zenlog || return 1
 
   cat "$(zenlog_last_log "${@}")"
 }
 
 zenlog_cat_last_log_content() {
-  _zenlog_fail_if_not_in_zenlog || return 1
+  zenlog_fail_if_not_in_zenlog || return 1
 
   sed -e "1,/^COMMAND:/d" -e "/^\x1b\[0m\x1b\[5m\x1b\[00000m/d" -- "$(zenlog_last_log "${@}" -r)"
 }
@@ -292,7 +302,7 @@ zenlog_current_log() {
 
 # Useful: when used with -p PID.
 zenlog_open_current_log() {
-  _zenlog_fail_if_not_in_zenlog || return 1
+  zenlog_fail_if_not_in_zenlog || return 1
 
   zenlog_open_viewer "$(zenlog_current_log "${@}")"
 }
@@ -444,7 +454,21 @@ sub stop_log() {
 
 open_log();
 
+my $paused = 0;
+
 while (defined(my $line = <>)) {
+  if ($paused) {
+    if ($line =~ m! \e\[0m\e\[7m\e\[00000m !x) {
+      $paused = 0;
+    }
+    next;
+  }
+
+  if ($line =~ m! \e\[0m\e\[6m\e\[00000m !x) {
+    $paused = 1;
+    next;
+  }
+
   # Command line and output marker.
   if ($line =~ m! \e\[0m\e\[3m\e\[00000m (.*?) \e\[0m\e\[4m\e\[00000m !x) {
     my $command = $1;
