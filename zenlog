@@ -205,7 +205,7 @@ zenlog_history() {
   (( $pid == $ZENLOG_PID )) && self=1
 
   local hist
-  if (( $nth + 0 == 0 )) ; then
+  if [[ "$nth" == "0" ]] ; then
     hist="$ZENLOG_TEMP_DIR"/zenlog-${pid}-current.txt
   else
     hist="$ZENLOG_TEMP_DIR"/zenlog-${pid}-history.txt
