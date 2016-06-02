@@ -141,6 +141,11 @@ zenlog_remove_marker() {
   echo $_zenlog_remove_marker
 }
 
+zenlog_perlpid() {
+  zenlog_fail_if_not_in_zenlog || return 1
+  cat "$ZENLOG_TEMP_DIR/zenlog-${ZENLOG_PID}-perlpid.txt"
+}
+
 _zenlog_pause_marker=$(echo -e '\e[0m\e[6m\e[00000m')
 zenlog_pause_marker() {
   echo $_zenlog_pause_marker
@@ -339,6 +344,7 @@ export ZENLOG_TEMP_DIR="${temp}"
 export ZENLOG_PID=$$
 export ZENLOG_HISTORY="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-history.txt
 export ZENLOG_CURRENT="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-current.txt
+export ZENLOG_PERLPID="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-perlpid.txt
 export ZENLOG_STAT="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-stat.txt
 trap 'rm -f "$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-*.txt' EXIT
 : ${ZENLOG_HISTSIZE:=20}
@@ -357,7 +363,7 @@ export ZENLOG_START_COMMAND
 script -qf \
     -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 232
+#line 353
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -376,6 +382,12 @@ my %always_iyayo = map {$_ => 1} split(/\s+/, $ENV{ZENLOG_ALWAYS_184});
 my ($raw, $san, $raw_name, $san_name);
 
 my @history = ();
+
+{
+  open(my $hf, ">$ENV{ZENLOG_PERLPID}");
+  print $hf ($$, "\n");
+  close($hf);
+}
 
 sub close_log() {
   $raw->close() if defined $raw;
