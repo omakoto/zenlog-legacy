@@ -151,6 +151,14 @@ zenlog_resume_marker() {
   echo $_zenlog_resume_marker
 }
 
+zenlog_pause() {
+  echo $_zenlog_pause_marker >/dev/tty
+}
+
+zenlog_resume() {
+  echo $_zenlog_resume_marker >/dev/tty
+}
+
 # execute command without logging output.
 zenlog_nolog() {
   echo -en '\e[0m\e[2m\e[00000m'
