@@ -403,7 +403,7 @@ sub open_log() {
   my $t = time;
   my $filename = sprintf('%s/%s.%03d-%s-%d',
       $log_dir,
-      strftime('%Y-%m-%d/%H:%M:%S', localtime($t)),
+      strftime('%Y-%m-%d/%H-%M-%S', localtime($t)),
       ($t - int($t)) * 1000, $zenlog_pid, $seq++);
   $filename =~ s!/+!/!g;
 
