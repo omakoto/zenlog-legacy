@@ -445,9 +445,10 @@ sub write_log($) {
 
   # Sanitize
   $l =~ s! (
-        \a                           # Bell
+        \a                         # Bell
         | \e \x5B .*? [\x40-\x7E]  # CSI
         | \e \x5D .*? \x07         # Set terminal title
+        | \e \( .                  # 3 byte sequence
         | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
         )
         !!gx;
