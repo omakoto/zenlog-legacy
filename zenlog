@@ -157,11 +157,11 @@ zenlog_resume_marker() {
 }
 
 zenlog_pause() {
-  echo $_zenlog_pause_marker >/dev/tty
+  echo $_zenlog_pause_marker
 }
 
 zenlog_resume() {
-  echo $_zenlog_resume_marker >/dev/tty
+  echo $_zenlog_resume_marker
 }
 
 # execute command without logging output.
