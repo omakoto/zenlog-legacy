@@ -401,7 +401,7 @@ sub open_log() {
   close_log();
 
   my $t = time;
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%s-%d',
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%s-%d.log',
       $log_dir,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
       ($t - int($t)) * 1000, $zenlog_pid, $seq++);
