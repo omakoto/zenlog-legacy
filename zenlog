@@ -379,7 +379,7 @@ my $stat_file = $ENV{ZENLOG_STAT};
 my $bg_viwer = $ENV{ZENLOG_BG_VIEWER};
 my %always_iyayo = map {$_ => 1} split(/\s+/, $ENV{ZENLOG_ALWAYS_184});
 
-my ($raw, $san, $raw_name, $san_name);
+my ($raw, $san, $cur_raw_name, $cur_san_name);
 
 my @history = ();
 
@@ -401,18 +401,19 @@ sub open_log() {
   close_log();
 
   my $t = time;
+
   my $raw_name = sprintf('%s/RAW/%s.%03d-%s-%d.log',
       $log_dir,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
       ($t - int($t)) * 1000, $zenlog_pid, $seq++);
   $raw_name =~ s!/+!/!g;
-
-  $san_name = $raw_name;
-
-  $san_name =~ s!/RAW/!/SAN/!;
+  my $san_name = $raw_name =~ s!/RAW/!/SAN/!r;
 
   make_path(dirname($raw_name));
   make_path(dirname($san_name));
+
+  $cur_raw_name = $raw_name;
+  $cur_san_name = $san_name;
 
   open($raw, ">$raw_name");
   open($san, ">$san_name");
@@ -499,10 +500,46 @@ while (defined(my $line = <>)) {
     write_log("COMMAND: $command\n");
     write_stat($command);
 
+    $command =~ s!^[\s\(]+!!; # Remove prefixing ('s.
     my $exe = (split(/\s+/, $command, 2))[0];
+
+    $exe =~ s!^.*/!!; # Remove file path
 
     if (exists($always_iyayo{$exe})) {
       stop_log();
+    } else {
+      # Create symlink
+      my $t = time;
+
+      # TODO It's supposed to be a "temporary" hack... clean it up...
+      my $raw_dir = sprintf('%s/commands/%s/RAW/%s/',
+          $log_dir,
+          $exe,
+          strftime('%Y/%m/%d', localtime($t)));
+      $raw_dir =~ s!/+!/!g;
+      my $san_dir = $raw_dir =~ s!/RAW/!/!r;
+
+      make_path($raw_dir);
+      make_path($san_dir);
+
+      my $raw_file = ($cur_raw_name =~ s!^.*/!!r);
+      my $san_file = ($cur_san_name =~ s!^.*/!!r);
+
+      symlink($cur_raw_name, "$raw_dir$raw_file");
+      symlink($cur_san_name, "$san_dir$san_file");
+
+      unlink("${raw_dir}PPPP");
+      rename("${raw_dir}PPP", "${raw_dir}PPPP");
+      rename("${raw_dir}PP", "${raw_dir}PPP");
+      rename("${raw_dir}P", "${raw_dir}PP");
+
+      unlink("${san_dir}PPPP");
+      rename("${san_dir}PPP", "${san_dir}PPPP");
+      rename("${san_dir}PP", "${san_dir}PPP");
+      rename("${san_dir}P", "${san_dir}PP");
+
+      symlink($cur_raw_name, "${raw_dir}P");
+      symlink($cur_san_name, "${san_dir}P");
     }
 
     next;
