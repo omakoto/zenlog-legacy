@@ -528,22 +528,22 @@ while (defined(my $line = <>)) {
       symlink($cur_raw_name, "$raw_dir$raw_file");
       symlink($cur_san_name, "$san_dir$san_file");
 
-      unlink("${command_dir}RRRRRR");
-      rename("${command_dir}RRRRR", "${command_dir}RRRRRR");
-      rename("${command_dir}RRRR", "${command_dir}RRRRR");
-      rename("${command_dir}RRR", "${command_dir}RRRR");
-      rename("${command_dir}RR", "${command_dir}RRR");
-      rename("${command_dir}R", "${command_dir}RR");
+      unlink("${command_dir}rrrrrr");
+      rename("${command_dir}rrrrr", "${command_dir}rrrrrr");
+      rename("${command_dir}rrrr", "${command_dir}rrrrr");
+      rename("${command_dir}rrr", "${command_dir}rrrr");
+      rename("${command_dir}rr", "${command_dir}rrr");
+      rename("${command_dir}r", "${command_dir}rr");
 
-      unlink("${command_dir}PPPPPP");
-      rename("${command_dir}PPPPP", "${command_dir}PPPPPP");
-      rename("${command_dir}PPPP", "${command_dir}PPPPP");
-      rename("${command_dir}PPP", "${command_dir}PPPP");
-      rename("${command_dir}PP", "${command_dir}PPP");
-      rename("${command_dir}P", "${command_dir}PP");
+      unlink("${command_dir}pppppp");
+      rename("${command_dir}ppppp", "${command_dir}pppppp");
+      rename("${command_dir}pppp", "${command_dir}ppppp");
+      rename("${command_dir}ppp", "${command_dir}pppp");
+      rename("${command_dir}pp", "${command_dir}ppp");
+      rename("${command_dir}p", "${command_dir}pp");
 
-      symlink($cur_raw_name, "${command_dir}/R");
-      symlink($cur_san_name, "${command_dir}/P");
+      symlink($cur_raw_name, "${command_dir}/r");
+      symlink($cur_san_name, "${command_dir}/p");
     }
 
     next;
