@@ -245,7 +245,7 @@ zenlog_history() {
           -name "*-$type.log" | sort
     else
       if (( $raw )) ; then
-        sed -e 's/-san\.log$/-raw.log/' "$hist"
+        sed -e 's!/SAN/!/RAW/!' "$hist"
       else
         cat "$hist"
       fi
@@ -363,7 +363,7 @@ export ZENLOG_START_COMMAND
 script -qf \
     -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 353
+#line 367
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -401,16 +401,18 @@ sub open_log() {
   close_log();
 
   my $t = time;
-  my $filename = sprintf('%s/%s.%03d-%s-%d',
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%s-%d',
       $log_dir,
-      strftime('%Y-%m-%d/%H-%M-%S', localtime($t)),
+      strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
       ($t - int($t)) * 1000, $zenlog_pid, $seq++);
-  $filename =~ s!/+!/!g;
+  $raw_name =~ s!/+!/!g;
 
-  make_path(dirname($filename));
+  $san_name = $raw_name;
 
-  $raw_name = "${filename}-raw.log";
-  $san_name = "${filename}-san.log";
+  $san_name =~ s!/RAW/!/SAN/!;
+
+  make_path(dirname($raw_name));
+  make_path(dirname($san_name));
 
   open($raw, ">$raw_name");
   open($san, ">$san_name");
