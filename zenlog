@@ -528,12 +528,16 @@ while (defined(my $line = <>)) {
       symlink($cur_raw_name, "$raw_dir$raw_file");
       symlink($cur_san_name, "$san_dir$san_file");
 
-      unlink("${command_dir}RRRR");
+      unlink("${command_dir}RRRRRR");
+      rename("${command_dir}RRRRR", "${command_dir}RRRRRR");
+      rename("${command_dir}RRRR", "${command_dir}RRRRR");
       rename("${command_dir}RRR", "${command_dir}RRRR");
       rename("${command_dir}RR", "${command_dir}RRR");
       rename("${command_dir}R", "${command_dir}RR");
 
-      unlink("${command_dir}PPPP");
+      unlink("${command_dir}PPPPPP");
+      rename("${command_dir}PPPPP", "${command_dir}PPPPPP");
+      rename("${command_dir}PPPP", "${command_dir}PPPPP");
       rename("${command_dir}PPP", "${command_dir}PPPP");
       rename("${command_dir}PP", "${command_dir}PPP");
       rename("${command_dir}P", "${command_dir}PP");
