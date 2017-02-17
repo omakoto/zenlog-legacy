@@ -512,9 +512,9 @@ while (defined(my $line = <>)) {
       my $t = time;
 
       # TODO It's supposed to be a "temporary" hack... clean it up...
-      my $raw_dir = sprintf('%s/commands/%s/RAW/%s/',
-          $log_dir,
-          $exe,
+      my $command_dir = "${log_dir}/commands/${exe}/";
+      my $raw_dir = sprintf('%s/RAW/%s/',
+          $command_dir,
           strftime('%Y/%m/%d', localtime($t)));
       $raw_dir =~ s!/+!/!g;
       my $san_dir = $raw_dir =~ s!/RAW/!/!r;
@@ -528,18 +528,18 @@ while (defined(my $line = <>)) {
       symlink($cur_raw_name, "$raw_dir$raw_file");
       symlink($cur_san_name, "$san_dir$san_file");
 
-      unlink("${raw_dir}PPPP");
-      rename("${raw_dir}PPP", "${raw_dir}PPPP");
-      rename("${raw_dir}PP", "${raw_dir}PPP");
-      rename("${raw_dir}P", "${raw_dir}PP");
+      unlink("${command_dir}RRRR");
+      rename("${command_dir}RRR", "${command_dir}RRRR");
+      rename("${command_dir}RR", "${command_dir}RRR");
+      rename("${command_dir}R", "${command_dir}RR");
 
-      unlink("${san_dir}PPPP");
-      rename("${san_dir}PPP", "${san_dir}PPPP");
-      rename("${san_dir}PP", "${san_dir}PPP");
-      rename("${san_dir}P", "${san_dir}PP");
+      unlink("${command_dir}PPPP");
+      rename("${command_dir}PPP", "${command_dir}PPPP");
+      rename("${command_dir}PP", "${command_dir}PPP");
+      rename("${command_dir}P", "${command_dir}PP");
 
-      symlink($cur_raw_name, "${raw_dir}P");
-      symlink($cur_san_name, "${san_dir}P");
+      symlink($cur_raw_name, "${command_dir}/R");
+      symlink($cur_san_name, "${command_dir}/P");
     }
 
     next;
