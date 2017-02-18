@@ -122,9 +122,11 @@ if (( $purge_days >= 0 )) ; then
   fi
   # First, remove old log files.
   find "$log_dir" -type f -ctime +$(( $purge_days - 1 )) \
-      -name '*.log' | xargs rm -f
+      -name '*.log' -delete
   # Then, remove all empty directories.
-  rmdir "$log_dir"/* 2>/dev/null || true
+  for n in 1 2 3 4 ; do
+    find "$log_dir" -type d -empty -delete
+  done
   exit 0
 fi
 
@@ -500,7 +502,7 @@ while (defined(my $line = <>)) {
     write_log("COMMAND: $command\n");
     write_stat($command);
 
-    for my $single_command ( split(/( \&\& | \|\| | \; )/x, $command)) {
+    for my $single_command ( split(/(?: \&\& | \|\| | \; )/x, $command)) {
       $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
       my $exe = (split(/\s+/, $single_command, 2))[0];
 
