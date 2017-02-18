@@ -500,52 +500,53 @@ while (defined(my $line = <>)) {
     write_log("COMMAND: $command\n");
     write_stat($command);
 
-    $command =~ s!^[\s\(]+!!; # Remove prefixing ('s.
-    my $exe = (split(/\s+/, $command, 2))[0];
+    for my $single_command ( split(/( \&\& | \|\| | \; )/x, $command)) {
+      $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
+      my $exe = (split(/\s+/, $single_command, 2))[0];
 
-    $exe =~ s!^.*/!!; # Remove file path
+      $exe =~ s!^.*/!!; # Remove file path
 
-    if (exists($always_iyayo{$exe})) {
-      stop_log();
-    } else {
-      # Create symlinks
-      my $t = time;
+      if (exists($always_iyayo{$exe})) {
+        stop_log();
+      } else {
+        # Create symlinks.
+        my $t = time;
 
-      # TODO It's supposed to be a "temporary" hack... clean it up...
-      my $command_dir = "${log_dir}/${exe}/";
-      my $raw_dir = sprintf('%s/RAW/%s/',
-          $command_dir,
-          strftime('%Y/%m/%d', localtime($t)));
-      $raw_dir =~ s!/+!/!g;
-      my $san_dir = $raw_dir =~ s!/RAW/!/!r;
+        # TODO It's supposed to be a "temporary" hack... clean it up...
+        my $command_dir = "${log_dir}/${exe}/";
+        my $raw_dir = sprintf('%s/RAW/%s/',
+            $command_dir,
+            strftime('%Y/%m/%d', localtime($t)));
+        $raw_dir =~ s!/+!/!g;
+        my $san_dir = $raw_dir =~ s!/RAW/!/!r;
 
-      make_path($raw_dir);
-      make_path($san_dir);
+        make_path($raw_dir);
+        make_path($san_dir);
 
-      my $raw_file = ($cur_raw_name =~ s!^.*/!!r);
-      my $san_file = ($cur_san_name =~ s!^.*/!!r);
+        my $raw_file = ($cur_raw_name =~ s!^.*/!!r);
+        my $san_file = ($cur_san_name =~ s!^.*/!!r);
 
-      symlink($cur_raw_name, "$raw_dir$raw_file");
-      symlink($cur_san_name, "$san_dir$san_file");
+        symlink($cur_raw_name, "$raw_dir$raw_file");
+        symlink($cur_san_name, "$san_dir$san_file");
 
-      unlink("${command_dir}rrrrrr");
-      rename("${command_dir}rrrrr", "${command_dir}rrrrrr");
-      rename("${command_dir}rrrr", "${command_dir}rrrrr");
-      rename("${command_dir}rrr", "${command_dir}rrrr");
-      rename("${command_dir}rr", "${command_dir}rrr");
-      rename("${command_dir}r", "${command_dir}rr");
+        unlink("${command_dir}rrrrrr");
+        rename("${command_dir}rrrrr", "${command_dir}rrrrrr");
+        rename("${command_dir}rrrr", "${command_dir}rrrrr");
+        rename("${command_dir}rrr", "${command_dir}rrrr");
+        rename("${command_dir}rr", "${command_dir}rrr");
+        rename("${command_dir}r", "${command_dir}rr");
 
-      unlink("${command_dir}pppppp");
-      rename("${command_dir}ppppp", "${command_dir}pppppp");
-      rename("${command_dir}pppp", "${command_dir}ppppp");
-      rename("${command_dir}ppp", "${command_dir}pppp");
-      rename("${command_dir}pp", "${command_dir}ppp");
-      rename("${command_dir}p", "${command_dir}pp");
+        unlink("${command_dir}pppppp");
+        rename("${command_dir}ppppp", "${command_dir}pppppp");
+        rename("${command_dir}pppp", "${command_dir}ppppp");
+        rename("${command_dir}ppp", "${command_dir}pppp");
+        rename("${command_dir}pp", "${command_dir}ppp");
+        rename("${command_dir}p", "${command_dir}pp");
 
-      symlink($cur_raw_name, "${command_dir}/r");
-      symlink($cur_san_name, "${command_dir}/p");
+        symlink($cur_raw_name, "${command_dir}/r");
+        symlink($cur_san_name, "${command_dir}/p");
+      }
     }
-
     next;
   }
 
