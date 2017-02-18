@@ -508,11 +508,11 @@ while (defined(my $line = <>)) {
     if (exists($always_iyayo{$exe})) {
       stop_log();
     } else {
-      # Create symlink
+      # Create symlinks
       my $t = time;
 
       # TODO It's supposed to be a "temporary" hack... clean it up...
-      my $command_dir = "${log_dir}/commands/${exe}/";
+      my $command_dir = "${log_dir}/${exe}/";
       my $raw_dir = sprintf('%s/RAW/%s/',
           $command_dir,
           strftime('%Y/%m/%d', localtime($t)));
