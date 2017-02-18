@@ -502,7 +502,7 @@ while (defined(my $line = <>)) {
     write_log("COMMAND: $command\n");
     write_stat($command);
 
-    for my $single_command ( split(/(?: \&\& | \|\| | \; )/x, $command)) {
+    for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
       $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
       my $exe = (split(/\s+/, $single_command, 2))[0];
 
