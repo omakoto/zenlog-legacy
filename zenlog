@@ -50,13 +50,12 @@ Usage:
           Cat the last sanitized log.
           -r, -n, -p have the same meaning as zenlog_last_log.
 
-      - zenlog_history [-r] [-n N] [-p ZENLOG_PID] [-a]
+      - zenlog_history [-r] [-n N] [-p ZENLOG_PID]
           Show the last N sanitized log filenames.
           -r will show the raw log filenames instead.
           -r, -n, -p have the same meaning as zenlog_last_log
             except when -n is omitted it'll show all the log files in the
             history.
-          -a will use find to show all actual log files.
 
           $ZENLOG_HISTSIZE is used as the history size. (default=20)
 
@@ -206,22 +205,15 @@ zenlog_history() {
   local type="san"
   local raw=0
   local nth=""
-  local show_command=0
-  local command_filter=""
-  local all=0
-  local really_all=0
 
   local OPTIND
   local OPTARG
-  while getopts "rp:n:cf:aA" opt; do
+  while getopts "rp:n:" opt; do
     case "$opt" in
       r) type=raw; raw=1 ;;
       p) pid="$OPTARG" ;;
       n) nth="$OPTARG" ;;
-      c) show_command=1 ;;
-      f) command_filter=$(sed -e 's!  *!.*!g' <<<"$OPTARG") ;;
-      a) all=1 ;;
-      A) really_all=1 ;;
+      *) return 1;;
     esac
   done
   shift $(($OPTIND - 1))
@@ -236,40 +228,11 @@ zenlog_history() {
     hist="$ZENLOG_TEMP_DIR"/zenlog-${pid}-history.txt
   fi
   {
-    if (( $all )) ; then
-      # sort -r | sed is needed to ignore previous sessions
-      # with the same pid.
-      find "$ZENLOG_CUR_LOG_DIR" -type f \
-          -name "*-$pid-*-$type.log" |
-          sort -r | sed -e '/-0-...\.log$/q'| sort
-    elif (( $really_all )) ; then
-      find "$ZENLOG_CUR_LOG_DIR" -type f \
-          -name "*-$type.log" | sort
+    if (( $raw )) ; then
+      sed -e 's!/SAN/!/RAW/!' "$hist"
     else
-      if (( $raw )) ; then
-        sed -e 's!/SAN/!/RAW/!' "$hist"
-      else
-        cat "$hist"
-      fi
+      cat "$hist"
     fi
-  } | {
-    while read file ; do
-      command=$( sed -ne '/^COMMAND: /{
-        s/^COMMAND: //p
-        q
-      }
-      ' "$file")
-      if [[ -z "$command_filter" ]] ||
-          grep -q -- "$command_filter" <<<"$command" ; then
-        if (( $show_command )) ; then
-          echo -n "$file"
-          echo -en "\t"
-          echo "$command"
-        else
-          echo "$file"
-        fi
-      fi
-    done
   } | {
     if [[ -n "$nth" ]] ; then
       tail -n $(( $nth + 1 )) | head -1
@@ -368,7 +331,7 @@ export ZENLOG_START_COMMAND
 script -qf \
     -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 372
+#line 335
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -522,8 +485,6 @@ sub create_command_links($) {
   symlink($cur_raw_name, "$raw_dir$raw_file");
   symlink($cur_san_name, "$san_dir$san_file");
 
-  # TODO Clean it up, one day...
-
   unlink("${command_dir}rrrrrr");
   rename("${command_dir}rrrrr", "${command_dir}rrrrrr");
   rename("${command_dir}rrrr" , "${command_dir}rrrrr");
@@ -541,7 +502,6 @@ sub create_command_links($) {
   symlink($cur_raw_name, "${command_dir}/r");
   symlink($cur_san_name, "${command_dir}/p");
 }
-
 
 open_log();
 
