@@ -371,6 +371,27 @@ sub logging() {
   return defined $cur_raw_name;
 }
 
+sub create_prev_links($$$) {
+  my ($raw, $san, $link_dir) = @_;
+
+  unlink("${link_dir}/rrrrrr");
+  rename("${link_dir}/rrrrr", "${link_dir}/rrrrrr");
+  rename("${link_dir}/rrrr" , "${link_dir}/rrrrr");
+  rename("${link_dir}/rrr"  , "${link_dir}/rrrr");
+  rename("${link_dir}/rr"   , "${link_dir}/rrr");
+  rename("${link_dir}/r"    , "${link_dir}/rr");
+
+  unlink("${link_dir}/pppppp");
+  rename("${link_dir}/ppppp", "${link_dir}/pppppp");
+  rename("${link_dir}/pppp" , "${link_dir}/ppppp");
+  rename("${link_dir}/ppp"  , "${link_dir}/pppp");
+  rename("${link_dir}/pp"   , "${link_dir}/ppp");
+  rename("${link_dir}/p"    , "${link_dir}/pp");
+
+  symlink($raw, "${link_dir}/r");
+  symlink($san, "${link_dir}/p");
+}
+
 my $seq = 0;
 sub open_log() {
   close_log();
@@ -392,6 +413,8 @@ sub open_log() {
 
   open($raw, ">$raw_name");
   open($san, ">$san_name");
+
+  create_prev_links($raw_name, $san_name, $log_dir);
 
   $raw->autoflush();
   $san->autoflush();
@@ -463,13 +486,13 @@ sub extract_tag($) {
   return $tag;
 }
 
-sub create_command_links($) {
-  my ($name) = @_;
+sub create_links($$) {
+  my ($dir, $name) = @_;
 
   # Create symlinks.
   my $t = time;
 
-  my $command_dir = "${log_dir}/${name}/";
+  my $command_dir = "${log_dir}/$dir/${name}/";
   my $raw_dir = sprintf('%s/RAW/%s/',
       $command_dir,
       strftime('%Y/%m/%d', localtime($t)));
@@ -485,22 +508,7 @@ sub create_command_links($) {
   symlink($cur_raw_name, "$raw_dir$raw_file");
   symlink($cur_san_name, "$san_dir$san_file");
 
-  unlink("${command_dir}rrrrrr");
-  rename("${command_dir}rrrrr", "${command_dir}rrrrrr");
-  rename("${command_dir}rrrr" , "${command_dir}rrrrr");
-  rename("${command_dir}rrr"  , "${command_dir}rrrr");
-  rename("${command_dir}rr"   , "${command_dir}rrr");
-  rename("${command_dir}r"    , "${command_dir}rr");
-
-  unlink("${command_dir}pppppp");
-  rename("${command_dir}ppppp", "${command_dir}pppppp");
-  rename("${command_dir}pppp" , "${command_dir}ppppp");
-  rename("${command_dir}ppp"  , "${command_dir}pppp");
-  rename("${command_dir}pp"   , "${command_dir}ppp");
-  rename("${command_dir}p"    , "${command_dir}pp");
-
-  symlink($cur_raw_name, "${command_dir}/r");
-  symlink($cur_san_name, "${command_dir}/p");
+  create_prev_links($cur_raw_name, $cur_san_name, $command_dir);
 }
 
 open_log();
@@ -541,11 +549,11 @@ while (defined(my $line = <>)) {
       if (exists($always_iyayo{$exe})) {
         stop_log();
       } else {
-        create_command_links($exe);
+        create_links("cmds", $exe);
       }
     }
     my $tag = extract_tag($command);
-    create_command_links("TAG_$tag") if $tag and logging();
+    create_links("tags", "$tag") if $tag and logging();
     next;
   }
 
