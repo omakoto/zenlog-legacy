@@ -357,6 +357,9 @@ export ZENLOG_ALWAYS_184
 
 export ZENLOG_CUR_LOG_DIR=$log_dir
 
+# Example: (builtin|time)
+export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
+
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
 export ZENLOG_START_COMMAND
@@ -365,7 +368,7 @@ export ZENLOG_START_COMMAND
 script -qf \
     -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 369
+#line 372
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -380,6 +383,7 @@ my $current_file = $ENV{ZENLOG_CURRENT};
 my $stat_file = $ENV{ZENLOG_STAT};
 my $bg_viwer = $ENV{ZENLOG_BG_VIEWER};
 my %always_iyayo = map {$_ => 1} split(/\s+/, $ENV{ZENLOG_ALWAYS_184});
+my $command_prefix = $ENV{ZENLOG_COMMAND_PREFIX};
 
 my ($raw, $san, $cur_raw_name, $cur_san_name);
 
@@ -552,6 +556,10 @@ while (defined(my $line = <>)) {
 
     for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
       $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
+
+      while ($single_command =~ s!^$command_prefix\s+!!o) {
+      }
+
       my $exe = (split(/\s+/, $single_command, 2))[0];
 
       $exe =~ s!^.*/!!; # Remove file path
