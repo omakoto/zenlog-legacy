@@ -123,7 +123,7 @@ if (( $purge_days >= 0 )) ; then
   find "$log_dir" \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) \
       -name '*.log' -delete
   # Then, remove all empty directories.
-  for n in 1 2 3 4 ; do
+  for n in 1 2 3 4 5 6; do
     find "$log_dir" -type d -empty -delete
   done
   exit 0
@@ -318,6 +318,7 @@ export ZENLOG_HISTSIZE
 : ${ZENLOG_ALWAYS_184:=}
 export ZENLOG_ALWAYS_184
 
+export ZENLOG_START_COMMAND
 export ZENLOG_CUR_LOG_DIR=$log_dir
 
 # Example: (builtin|time)
@@ -325,13 +326,11 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
-export ZENLOG_START_COMMAND
-
 # TODO: the -c part doesn't work on all shells.
 script -qf \
     -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 335
+#line 334
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -453,7 +452,7 @@ sub write_log($) {
         | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
         )
         !!gx;
-  # Also clean up CL/LFs.
+  # Also clean up CR/LFs.
   $l =~ s! \s* \x0d* \x0a !\x0a!gx;       # Remove end-of-line CRs.
   $l =~ s! \s* \x0d !\x0a!gx;             # Replace orphan CRs with LFs.
 
@@ -481,18 +480,24 @@ sub extract_tag($) {
   my $tag = $1;
 
   $tag =~ s! \s+ $ !!x;
-  $tag =~ s! [ / \s ]+ !_!xg;
 
   return $tag;
 }
 
+# Create symlinks.
 sub create_links($$) {
   my ($dir, $name) = @_;
 
-  # Create symlinks.
+  # Normalzie.
+  $name =~ s! \s+ $!!xg;
+  $name =~ s! [ / \s ]+ !_!xg;
+
+  # Avoid typical errors...
+  return if $name =~ m!^ ( \. | \.\. ) $!x;
+
   my $t = time;
 
-  my $command_dir = "${log_dir}/$dir/${name}/";
+  my $command_dir = "$log_dir/$dir/$name/";
   my $raw_dir = sprintf('%s/RAW/%s/',
       $command_dir,
       strftime('%Y/%m/%d', localtime($t)));
@@ -544,7 +549,8 @@ while (defined(my $line = <>)) {
 
       my $exe = (split(/\s+/, $single_command, 2))[0];
 
-      $exe =~ s!^.*/!!; # Remove file path
+      $exe =~ s!^ \\ !!x; # Remove first '\'.
+      $exe =~ s!^ .*/ !!x; # Remove file path
 
       if (exists($always_iyayo{$exe})) {
         stop_log();
@@ -553,7 +559,7 @@ while (defined(my $line = <>)) {
       }
     }
     my $tag = extract_tag($command);
-    create_links("tags", "$tag") if $tag and logging();
+    create_links("tags", $tag) if $tag and logging();
     next;
   }
 
