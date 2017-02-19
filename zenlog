@@ -491,7 +491,7 @@ sub stop_log() {
 sub extract_tag($) {
   my ($file) = @_;
 
-  $file =~ m! \# \s* ( [^\#]+ )!x;
+  return "" unless $file =~ m!\#\s*([^\#]+)$!;
   my $tag = $1;
 
   $tag =~ s! \s+ $ !!x;
