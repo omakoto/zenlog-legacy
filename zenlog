@@ -400,6 +400,12 @@ sub close_log() {
   $san->close() if defined $san;
   undef $raw;
   undef $san;
+  undef $cur_raw_name;
+  undef $cur_san_name;
+}
+
+sub logging() {
+  return defined $cur_raw_name;
 }
 
 my $seq = 0;
@@ -482,9 +488,16 @@ sub stop_log() {
   close_log();
 }
 
-sub normalize_to_filename($) {
+sub extract_tag($) {
   my ($file) = @_;
-  $file =~ s![/\s]+!_!rg;
+
+  $file =~ m! \# \s* ( [^\#]+ )!x;
+  my $tag = $1;
+
+  $tag =~ s! \s+ $ !!x;
+  $tag =~ s! [ / \s ]+ !_!xg;
+
+  return $tag;
 }
 
 sub create_command_links($) {
@@ -557,6 +570,7 @@ while (defined(my $line = <>)) {
     for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
       $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
 
+      # Remove prefixes, such as "builtin" and "time".
       while ($single_command =~ s!^$command_prefix\s+!!o) {
       }
 
@@ -570,6 +584,8 @@ while (defined(my $line = <>)) {
         create_command_links($exe);
       }
     }
+    my $tag = extract_tag($command);
+    create_command_links("TAG_$tag") if $tag and logging();
     next;
   }
 
