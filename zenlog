@@ -502,7 +502,7 @@ sub create_links($$) {
       $command_dir,
       strftime('%Y/%m/%d', localtime($t)));
   $raw_dir =~ s!/+!/!g;
-  my $san_dir = $raw_dir =~ s!/RAW/!/!r;
+  my $san_dir = $raw_dir =~ s!/RAW/!/SAN/!r;
 
   make_path($raw_dir);
   make_path($san_dir);
