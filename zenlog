@@ -120,10 +120,14 @@ if (( $purge_days >= 0 )) ; then
     [[ "$res" == "y" ]] || [[ "$res" == "Y" ]] || exit 1
   fi
   # First, remove old log files.
-  find "$log_dir" \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -delete
+  find "$log_dir" -mindepth 1 \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -delete
+
+  # Remove broken links.
+  find "$log_dir" -xtype l -delete
+
   # Then, remove all empty directories.
   for n in 1 2 3 4 5 6; do
-    find "$log_dir" -type d -empty -delete
+    find "$log_dir" -mindepth 1 -type d -empty -delete
   done
   exit 0
 fi
