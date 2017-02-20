@@ -391,6 +391,38 @@ sub create_prev_links($$$) {
   symlink($san, "${link_dir}/p");
 }
 
+# Create symlinks.
+sub create_links($$) {
+  my ($dir, $name) = @_;
+
+  # Normalzie.
+  $name =~ s! \s+ $!!xg;
+  $name =~ s! [ / \s ]+ !_!xg;
+
+  # Avoid typical errors...
+  return if $name =~ m!^ ( \. | \.\. ) $!x;
+
+  my $t = time;
+
+  my $command_dir = "$log_dir/$dir/$name/";
+  my $raw_dir = sprintf('%s/RAW/%s/',
+      $command_dir,
+      strftime('%Y/%m/%d', localtime($t)));
+  $raw_dir =~ s!/+!/!g;
+  my $san_dir = $raw_dir =~ s!/RAW/!/SAN/!r;
+
+  make_path($raw_dir);
+  make_path($san_dir);
+
+  my $raw_file = ($cur_raw_name =~ s!^.*/!!r);
+  my $san_file = ($cur_san_name =~ s!^.*/!!r);
+
+  symlink($cur_raw_name, "$raw_dir$raw_file");
+  symlink($cur_san_name, "$san_dir$san_file");
+
+  create_prev_links($cur_raw_name, $cur_san_name, $command_dir);
+}
+
 my $seq = 0;
 sub open_log() {
   close_log();
@@ -413,8 +445,6 @@ sub open_log() {
   open($raw, ">$raw_name");
   open($san, ">$san_name");
 
-  create_prev_links($raw_name, $san_name, $log_dir);
-
   $raw->autoflush();
   $san->autoflush();
 
@@ -435,6 +465,9 @@ sub open_log() {
     }
     close($hf);
   }
+
+  create_prev_links($raw_name, $san_name, $log_dir);
+  create_links("pids", $zenlog_pid)
 }
 
 sub write_log($) {
@@ -482,38 +515,6 @@ sub extract_tag($) {
   $tag =~ s! \s+ $ !!x;
 
   return $tag;
-}
-
-# Create symlinks.
-sub create_links($$) {
-  my ($dir, $name) = @_;
-
-  # Normalzie.
-  $name =~ s! \s+ $!!xg;
-  $name =~ s! [ / \s ]+ !_!xg;
-
-  # Avoid typical errors...
-  return if $name =~ m!^ ( \. | \.\. ) $!x;
-
-  my $t = time;
-
-  my $command_dir = "$log_dir/$dir/$name/";
-  my $raw_dir = sprintf('%s/RAW/%s/',
-      $command_dir,
-      strftime('%Y/%m/%d', localtime($t)));
-  $raw_dir =~ s!/+!/!g;
-  my $san_dir = $raw_dir =~ s!/RAW/!/SAN/!r;
-
-  make_path($raw_dir);
-  make_path($san_dir);
-
-  my $raw_file = ($cur_raw_name =~ s!^.*/!!r);
-  my $san_file = ($cur_san_name =~ s!^.*/!!r);
-
-  symlink($cur_raw_name, "$raw_dir$raw_file");
-  symlink($cur_san_name, "$san_dir$san_file");
-
-  create_prev_links($cur_raw_name, $cur_san_name, $command_dir);
 }
 
 open_log();
