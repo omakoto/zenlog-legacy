@@ -333,7 +333,7 @@ echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 script -qf \
     -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 334
+#line 337
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -468,9 +468,6 @@ sub open_log() {
     }
     close($hf);
   }
-
-  create_prev_links($raw_name, $san_name, $log_dir);
-  create_links("pids", $zenlog_pid)
 }
 
 sub write_log($) {
@@ -562,8 +559,14 @@ while (defined(my $line = <>)) {
         create_links("cmds", $exe);
       }
     }
-    my $tag = extract_tag($command);
-    create_links("tags", $tag) if $tag and logging();
+
+    if (logging()) { # not iyayo?
+      create_prev_links($cur_raw_name, $cur_san_name, $log_dir);
+      create_links("pids", $zenlog_pid);
+
+      my $tag = extract_tag($command);
+      create_links("tags", $tag) if $tag;
+    }
     next;
   }
 
