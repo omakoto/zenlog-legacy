@@ -330,7 +330,7 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
-script -qf \
+exec script -qf \
     -c 'export ZENLOG_TTY=$(tty); echo $$ > $ZENLOG_SHELLPID; exec $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
 #line 337
@@ -600,5 +600,3 @@ while (defined(my $line = <>)) {
 close_log()
 EOF
 ) )
-
-echo "$name done." 1>&2
