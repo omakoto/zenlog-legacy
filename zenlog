@@ -447,8 +447,8 @@ sub open_log() {
   $cur_raw_name = $raw_name;
   $cur_san_name = $san_name;
 
-  open($raw, ">$raw_name");
-  open($san, ">$san_name");
+  open($raw, ">$cur_raw_name");
+  open($san, ">$cur_san_name");
 
   $raw->autoflush();
   $san->autoflush();
@@ -470,6 +470,16 @@ sub open_log() {
     }
     close($hf);
   }
+}
+
+sub reopen() {
+  close $raw;
+  close $san;
+  open($raw, ">$cur_raw_name");
+  open($san, ">$cur_san_name");
+
+  $raw->autoflush();
+  $san->autoflush();
 }
 
 sub write_log($) {
@@ -539,8 +549,9 @@ while (defined(my $line = <>)) {
   # Command line and output marker.
   if ($line =~ m! \e\[0m\e\[3m\e\[00000m (.*?) \e\[0m\e\[4m\e\[00000m !x) {
     my $command = $1;
-    write_log($line);
-    write_log("COMMAND: $command\n");
+    # write_log($line);
+    reopen();
+    write_log("\$ $command\n");
     write_stat($command);
 
     for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
