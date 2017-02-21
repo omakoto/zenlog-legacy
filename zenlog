@@ -330,8 +330,8 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
-# exec didn't work well with bash 4.3 (?), but now it does work with bash 4.4.
-exec script -qf \
+# Don't use exec so 'trap' works.
+script -qf \
     -c 'export ZENLOG_TTY=$(tty); echo $$ > $ZENLOG_SHELLPID; exec $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
 #line 337
