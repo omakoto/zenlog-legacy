@@ -398,6 +398,8 @@ sub create_prev_links($$$) {
 sub create_links($$) {
   my ($dir, $name) = @_;
 
+  return unless logging();
+
   # Normalzie.
   $name =~ s! \s+ $!!xg;
   $name =~ s! [ / \s ]+ !_!xg;
