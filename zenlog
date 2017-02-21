@@ -313,6 +313,7 @@ export ZENLOG_PID=$$
 export ZENLOG_HISTORY="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-history.txt
 export ZENLOG_CURRENT="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-current.txt
 export ZENLOG_PERLPID="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-perlpid.txt
+export ZENLOG_SHELLPID="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-shellpid.txt
 export ZENLOG_STAT="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-stat.txt
 trap 'rm -f "$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-*.txt' EXIT
 : ${ZENLOG_HISTSIZE:=20}
@@ -329,9 +330,8 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
-# TODO: the -c part doesn't work on all shells.
 script -qf \
-    -c 'export ZENLOG_TTY=$(tty); $ZENLOG_START_COMMAND' \
+    -c 'export ZENLOG_TTY=$(tty); echo $$ > $ZENLOG_SHELLPID; exec $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
 #line 337
 use strict;
