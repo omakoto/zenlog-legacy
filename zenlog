@@ -202,24 +202,27 @@ zenlog_fail_if_not_in_zenlog() {
 }
 
 zenlog_history() {
-  zenlog_fail_if_not_in_zenlog || return 1
-
   local pid=$ZENLOG_PID
   local type="san"
   local raw=0
   local nth=""
+  local no_zenlog_check=0
 
   local OPTIND
   local OPTARG
-  while getopts "rp:n:" opt; do
+  while getopts "xrp:n:" opt; do
     case "$opt" in
       r) type=raw; raw=1 ;;
       p) pid="$OPTARG" ;;
       n) nth="$OPTARG" ;;
+      x) no_zenlog_check=1 ;;
       *) return 1;;
     esac
   done
   shift $(($OPTIND - 1))
+  if (( ! $no_zenlog_check )) ; then
+    zenlog_fail_if_not_in_zenlog || return 1
+  fi
 
   local self=0
   (( $pid == $ZENLOG_PID )) && self=1
