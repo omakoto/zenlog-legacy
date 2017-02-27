@@ -228,7 +228,7 @@ zenlog_history() {
     if [[ -n "$nth" ]] ; then
       command ls "$ZENLOG_CUR_LOG_DIR/pids/$pid/${filename:0:$(($nth + 1))}"
     else
-      command ls "$ZENLOG_CUR_LOG_DIR"/pids/$pid/${filename:0:1}*
+      command ls "$ZENLOG_CUR_LOG_DIR"/pids/$pid/${filename:0:1}* | sort -r
     fi
   } 2>/dev/null | while read n ; do
     [[ -f "$n" ]] && {
@@ -419,6 +419,9 @@ sub open_log() {
 
   $raw->autoflush();
   $san->autoflush();
+
+  create_prev_links($cur_raw_name, $cur_san_name, $log_dir);
+  create_links("pids", $zenlog_pid);
 }
 
 sub reopen() {
@@ -519,9 +522,6 @@ while (defined(my $line = <>)) {
     }
 
     if (logging()) { # not iyayo?
-      create_prev_links($cur_raw_name, $cur_san_name, $log_dir);
-      create_links("pids", $zenlog_pid);
-
       my $tag = extract_tag($command);
       create_links("tags", $tag) if $tag;
     }
