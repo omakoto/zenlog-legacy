@@ -62,7 +62,8 @@ Usage:
       - zenlog_echo_command COMMAND [opts...]
           If you use this to echo back the command line that's being
           executed in the pre-exec hook, zenlog will recognize the
-          current command and perform auto-184.
+          current command, clean up the command line line and also
+          perform auto-184.
           See also ZENLOG_ALWAYS_184.
 
       - zenlog_du
@@ -202,17 +203,16 @@ zenlog_fail_if_not_in_zenlog() {
 }
 
 zenlog_history() {
-  local pid=$ZENLOG_PID
-  local type="san"
-  local raw=0
+  local filename="ppppppX"
   local nth=""
   local no_zenlog_check=0
+  local pid=$ZENLOG_PID
 
   local OPTIND
   local OPTARG
   while getopts "xrp:n:" opt; do
     case "$opt" in
-      r) type=raw; raw=1 ;;
+      r) filename="rrrrrrX" ;;
       p) pid="$OPTARG" ;;
       n) nth="$OPTARG" ;;
       x) no_zenlog_check=1 ;;
@@ -224,28 +224,18 @@ zenlog_history() {
     zenlog_fail_if_not_in_zenlog || return 1
   fi
 
-  local self=0
-  (( $pid == $ZENLOG_PID )) && self=1
-
-  local hist
-  if [[ "$nth" == "0" ]] ; then
-    hist="$ZENLOG_TEMP_DIR"/zenlog-${pid}-current.txt
-  else
-    hist="$ZENLOG_TEMP_DIR"/zenlog-${pid}-history.txt
-  fi
   {
-    if (( $raw )) ; then
-      sed -e 's!/SAN/!/RAW/!' "$hist"
-    else
-      cat "$hist"
-    fi
-  } | {
     if [[ -n "$nth" ]] ; then
-      tail -n $(( $nth + 1 )) | head -1
+      command ls "$ZENLOG_CUR_LOG_DIR/pids/$pid/${filename:0:$(($nth + 1))}"
     else
-      cat
+      command ls "$ZENLOG_CUR_LOG_DIR"/pids/$pid/${filename:0:1}*
     fi
-  }
+  } 2>/dev/null | while read n ; do
+    [[ -f "$n" ]] && {
+      # Resolve symlink, but only one level.
+      command ls -l "$n" | sed -e 's/.* -> //'
+    }
+  done
 }
 
 zenlog_last_log() {
@@ -276,7 +266,7 @@ zenlog_cat_last_log() {
 zenlog_cat_last_log_content() {
   zenlog_fail_if_not_in_zenlog || return 1
 
-  sed -e "1,/^COMMAND:/d" -e "/^\x1b\[0m\x1b\[5m\x1b\[00000m/d" -- "$(zenlog_last_log "${@}" -r)"
+  sed -e "1d" -- "$(zenlog_last_log "${@}" -r)"
 }
 
 # Useful: when used with -p PID.
@@ -289,11 +279,6 @@ zenlog_open_current_log() {
   zenlog_fail_if_not_in_zenlog || return 1
 
   zenlog_open_viewer "$(zenlog_current_log "${@}")"
-}
-
-zenlog_show_running_commands() {
-  cat "$ZENLOG_TEMP_DIR"/zenlog-*-stat.txt
-  # TODO Don't show from dead PIDs.
 }
 
 zenlog_du() {
@@ -313,14 +298,6 @@ fi
 
 export ZENLOG_TEMP_DIR="${temp}"
 export ZENLOG_PID=$$
-export ZENLOG_HISTORY="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-history.txt
-export ZENLOG_CURRENT="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-current.txt
-export ZENLOG_PERLPID="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-perlpid.txt
-export ZENLOG_SHELLPID="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-shellpid.txt
-export ZENLOG_STAT="$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-stat.txt
-trap 'rm -f "$ZENLOG_TEMP_DIR"/zenlog-$ZENLOG_PID-*.txt' EXIT
-: ${ZENLOG_HISTSIZE:=20}
-export ZENLOG_HISTSIZE
 
 : ${ZENLOG_ALWAYS_184:=}
 export ZENLOG_ALWAYS_184
@@ -333,11 +310,10 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
-# Don't use exec so 'trap' works.
-script -qf \
-    -c 'export ZENLOG_TTY=$(tty); echo $$ > $ZENLOG_SHELLPID; exec $ZENLOG_START_COMMAND' \
+exec script -qf \
+    -c 'export ZENLOG_TTY=$(tty); exec $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 341
+#line 317
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -346,23 +322,10 @@ use File::Basename;
 
 my $zenlog_pid = $ENV{ZENLOG_PID};
 my $log_dir = $ENV{ZENLOG_CUR_LOG_DIR};
-my $history_file = $ENV{ZENLOG_HISTORY};
-my $history_size = $ENV{ZENLOG_HISTSIZE};
-my $current_file = $ENV{ZENLOG_CURRENT};
-my $stat_file = $ENV{ZENLOG_STAT};
-my $bg_viwer = $ENV{ZENLOG_BG_VIEWER};
 my %always_iyayo = map {$_ => 1} split(/\s+/, $ENV{ZENLOG_ALWAYS_184});
 my $command_prefix = $ENV{ZENLOG_COMMAND_PREFIX};
 
 my ($raw, $san, $cur_raw_name, $cur_san_name);
-
-my @history = ();
-
-{
-  open(my $hf, ">$ENV{ZENLOG_PERLPID}");
-  print $hf ($$, "\n");
-  close($hf);
-}
 
 sub close_log() {
   $raw->close() if defined $raw;
@@ -456,24 +419,6 @@ sub open_log() {
 
   $raw->autoflush();
   $san->autoflush();
-
-  push @history, $san_name;
-  if (@history > $history_size) {
-    @history = @history[-$history_size .. -1];
-  }
-
-  {
-    open(my $hf, ">$current_file");
-    print $hf ($san_name, "\n");
-    close($hf);
-  }
-  {
-    open(my $hf, ">$history_file");
-    for my $h (@history) {
-      print $hf ($h, "\n");
-    }
-    close($hf);
-  }
 }
 
 sub reopen() {
@@ -508,13 +453,6 @@ sub write_log($) {
   # Also replace ^H's.
   $l =~ s! \x08 !^H!gx;
   $san->print($l) if defined $san;
-}
-
-sub write_stat($) {
-  my ($command) = @_;
-  open(my $s, ">$stat_file");
-  print $s ($zenlog_pid, "\t", ($command =~ tr!\t! !r), "\n");
-  close($s);
 }
 
 sub stop_log() {
@@ -560,7 +498,6 @@ while (defined(my $line = <>)) {
 
     reopen();
     write_log("\$ \e[1;3;4m$command\e[0m\n");
-    write_stat($command);
 
     for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
       $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
@@ -598,7 +535,6 @@ while (defined(my $line = <>)) {
     write_log($pre);
 
     open_log();
-    write_stat("");
 
     write_log($post);
 
