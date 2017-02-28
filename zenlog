@@ -10,6 +10,8 @@ Zenlog
   Start a new shell where all input/output from each command will be saved
   in a separate file.
 
+  Make sure to update PS1 and include $(zenlog_prompt_marker) in it.  See below.
+
 Usage:
   zenlog [-d LOG_DIR]
     Start a new shell.
