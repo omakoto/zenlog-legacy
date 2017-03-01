@@ -312,10 +312,13 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
+: ${ZENLOG_RUN_TEST:=0}
+export ZENLOG_RUN_TEST
+
 exec script -qf \
     -c 'export ZENLOG_TTY=$(tty); exec $ZENLOG_START_COMMAND' \
     >(perl -w <(cat <<'EOF'
-#line 317
+#line 320
 use strict;
 use Time::HiRes qw(time);
 use POSIX qw(strftime);
@@ -468,12 +471,64 @@ sub stop_log() {
 sub extract_tag($) {
   my ($file) = @_;
 
-  return "" unless $file =~ m!\#\s*([^\#]+)$!;
-  my $tag = $1;
+  my $i = 0;
+  my $next_char = sub {
+    return undef if $i >= length($file);
+    return substr($file, $i++, 1);
+  };
+  my $ch;
 
-  $tag =~ s! \s+ $ !!x;
+  outer:
+  while (defined($ch = &$next_char())) {
+    if ($ch eq '#') {
+      # Remove the leading spaces and return.
+      return substr($file, $i) =~ s/^\s+//r;
+    }
+    if ($ch eq '\\') {
+      $i++;
+      next;
+    }
+    if ($ch eq "\'") {
+      while (defined($ch = &$next_char())) {
+        if ($ch eq "\'") {
+          next outer;
+        }
+      }
+      return "";
+    }
+    if ($ch eq "\"") {
+      while (defined($ch = &$next_char())) {
+        if ($ch eq '\\') {
+          $i++;
+          next;
+        }
+        if ($ch eq "\"") {
+          next outer;
+        }
+      }
+      return "";
+    }
+  }
+  return "";
+}
 
-  return $tag;
+if ($ENV{ZENLOG_RUN_TEST}) {
+  sub check_extract_tag($$) {
+    my ($expected, $input) = @_;
+    my $actual = extract_tag($input);
+    die "Expected '$expected' for '$input', but got '$actual'\n" unless $actual eq $expected;
+  }
+  check_extract_tag('', '');
+  check_extract_tag('', 'abc');
+  check_extract_tag('', 'abc def');
+  check_extract_tag('XYZ DEF #AB', 'abc def #  XYZ DEF #AB');
+  check_extract_tag('AB', 'abc def \\#  XYZ DEF #AB');
+  check_extract_tag('XYZ DEF #AB', 'abc def \\\\#  XYZ DEF #AB');
+  check_extract_tag('AB', "abc def ' # '  XYZ DEF #AB");
+  check_extract_tag('AB', 'abc def " # "  XYZ DEF #AB');
+  check_extract_tag('AB', 'abc def " \"# "  XYZ DEF #AB');
+  check_extract_tag('AB', 'abc def " \"# "  XYZ DEF ""#AB');
+  check_extract_tag('', 'abc def " \"# "  XYZ DEF ""\\#AB');
 }
 
 open_log();
