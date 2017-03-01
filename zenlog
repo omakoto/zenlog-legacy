@@ -348,22 +348,22 @@ sub logging() {
 sub create_prev_links($$$) {
   my ($raw, $san, $link_dir) = @_;
 
-  unlink("${link_dir}/rrrrrr");
-  rename("${link_dir}/rrrrr", "${link_dir}/rrrrrr");
-  rename("${link_dir}/rrrr" , "${link_dir}/rrrrr");
-  rename("${link_dir}/rrr"  , "${link_dir}/rrrr");
-  rename("${link_dir}/rr"   , "${link_dir}/rrr");
-  rename("${link_dir}/r"    , "${link_dir}/rr");
+  unlink("${link_dir}/RRRRRR");
+  rename("${link_dir}/RRRRR", "${link_dir}/RRRRRR");
+  rename("${link_dir}/RRRR" , "${link_dir}/RRRRR");
+  rename("${link_dir}/RRR"  , "${link_dir}/RRRR");
+  rename("${link_dir}/RR"   , "${link_dir}/RRR");
+  rename("${link_dir}/R"    , "${link_dir}/RR");
 
-  unlink("${link_dir}/pppppp");
-  rename("${link_dir}/ppppp", "${link_dir}/pppppp");
-  rename("${link_dir}/pppp" , "${link_dir}/ppppp");
-  rename("${link_dir}/ppp"  , "${link_dir}/pppp");
-  rename("${link_dir}/pp"   , "${link_dir}/ppp");
-  rename("${link_dir}/p"    , "${link_dir}/pp");
+  unlink("${link_dir}/PPPPPP");
+  rename("${link_dir}/PPPPP", "${link_dir}/PPPPPP");
+  rename("${link_dir}/PPPP" , "${link_dir}/PPPPP");
+  rename("${link_dir}/PPP"  , "${link_dir}/PPPP");
+  rename("${link_dir}/PP"   , "${link_dir}/PPP");
+  rename("${link_dir}/P"    , "${link_dir}/PP");
 
-  symlink($raw, "${link_dir}/r");
-  symlink($san, "${link_dir}/p");
+  symlink($raw, "${link_dir}/R");
+  symlink($san, "${link_dir}/P");
 }
 
 # Create symlinks.
