@@ -11,11 +11,6 @@ zenlog_remove_marker() {
   echo $_zenlog_remove_marker
 }
 
-zenlog_perlpid() {
-  zenlog_fail_if_not_in_zenlog || return 1
-  cat "$ZENLOG_TEMP_DIR/zenlog-${ZENLOG_PID}-perlpid.txt"
-}
-
 _zenlog_pause_marker=$(echo -e '\e[0m\e[6m\e[00000m')
 zenlog_pause_marker() {
   echo $_zenlog_pause_marker

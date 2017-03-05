@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Zenlog log writer.
+# Zenlog log spliter / writer.
 
 use strict;
 use Time::HiRes qw(time);

@@ -65,7 +65,7 @@ Usage:
 
       - zenlog_echo_command COMMAND [opts...]
           If you use this to echo back the command line that's being
-          executed in the pre-exec hook, zenlog will recognize the
+          executed in the pre-exec hook (i.e. PS0), zenlog will recognize the
           current command, clean up the command line line and also
           perform auto-184.
           See also ZENLOG_ALWAYS_184.
@@ -123,17 +123,17 @@ if (( $purge_days >= 0 )) ; then
   if ! (( $purge_yes )) ; then
     echo -n "$name: Purging logs older than $purge_days days? (y/N) "
     read res
-    [[ "$res" == "y" ]] || [[ "$res" == "Y" ]] || exit 1
+    [[ "$res" == "y" || "$res" == "Y" ]] || exit 1
   fi
   # First, remove old log files.
-  find "$log_dir" -mindepth 1 \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -delete
+  find "$log_dir" -mindepth 1 \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -delete || true
 
   # Remove broken links.
-  find "$log_dir" -xtype l -delete
+  find "$log_dir" -xtype l -delete || true
 
   # Then, remove all empty directories.
   for n in 1 2 3 4 5 6; do
-    find "$log_dir" -mindepth 1 -type d -empty -delete
+    find "$log_dir" -mindepth 1 -type d -empty -delete || true
   done
   exit 0
 fi
