@@ -61,8 +61,6 @@ Usage:
             except when -n is omitted it'll show all the log files in the
             history.
 
-          $ZENLOG_HISTSIZE is used as the history size. (default=20)
-
       - zenlog_echo_command COMMAND [opts...]
           If you use this to echo back the command line that's being
           executed in the pre-exec hook (i.e. PS0), zenlog will recognize the
