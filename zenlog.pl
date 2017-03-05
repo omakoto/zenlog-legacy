@@ -215,82 +215,87 @@ if ($run_test) {
   exit 0;
 }
 
-open_log();
+sub main() {
+  open_log();
 
-my $paused = 0;
+  my $paused = 0;
 
-while (defined(my $line = <>)) {
-  if ($paused) {
-    if ($line =~ m! \e\[0m\e\[7m\e\[00000m !x) {
-      $paused = 0;
+  while (defined(my $line = <>)) {
+    if ($paused) {
+      if ($line =~ m! \e\[0m\e\[7m\e\[00000m !x) {
+        $paused = 0;
+      }
+      next;
     }
-    next;
-  }
 
-  if ($line =~ m! \e\[0m\e\[6m\e\[00000m !x) {
-    $paused = 1;
-    next;
-  }
+    if ($line =~ m! \e\[0m\e\[6m\e\[00000m !x) {
+      $paused = 1;
+      next;
+    }
 
-  # Command line and output marker.
-  if ($line =~ m! \e\[0m\e\[3m\e\[00000m (.*?) \e\[0m\e\[4m\e\[00000m !x) {
-    my $command = $1;
+    # Command line and output marker.
+    if ($line =~ m! \e\[0m\e\[3m\e\[00000m (.*?) \e\[0m\e\[4m\e\[00000m !x) {
+      my $command = $1;
 
-    $command =~ s!^\s+!!;
-    $command =~ s!\s+$!!;
-    # write_log($line);
+      $command =~ s!^\s+!!;
+      $command =~ s!\s+$!!;
+      # write_log($line);
 
-    reopen();
-    write_log("\$ \e[1;3;4m$command\e[0m\n");
+      reopen();
+      write_log("\$ \e[1;3;4m$command\e[0m\n");
 
-    for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
-      $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
+      for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
+        $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
 
-      # Remove prefixes, such as "builtin" and "time".
-      while ($single_command =~ s!^$command_prefix\s+!!o) {
+        # Remove prefixes, such as "builtin" and "time".
+        while ($single_command =~ s!^$command_prefix\s+!!o) {
+        }
+
+        my $exe = (split(/\s+/, $single_command, 2))[0];
+
+        $exe =~ s!^ \\ !!x; # Remove first '\'.
+        $exe =~ s!^ .*/ !!x; # Remove file path
+
+        if (exists($always_iyayo{$exe})) {
+          stop_log();
+        } else {
+          create_links("cmds", $exe);
+        }
       }
 
-      my $exe = (split(/\s+/, $single_command, 2))[0];
-
-      $exe =~ s!^ \\ !!x; # Remove first '\'.
-      $exe =~ s!^ .*/ !!x; # Remove file path
-
-      if (exists($always_iyayo{$exe})) {
-        stop_log();
-      } else {
-        create_links("cmds", $exe);
+      if (logging()) { # not iyayo?
+        my $tag = extract_tag($command);
+        create_links("tags", $tag) if $tag;
       }
+      next;
     }
 
-    if (logging()) { # not iyayo?
-      my $tag = extract_tag($command);
-      create_links("tags", $tag) if $tag;
+    if ($line =~ m! ^ (.*?)  \e\[0m\e\[1m\e\[00000m (.*) !x) {
+      # separator
+
+      my ($pre, $post) = ($1, $2);
+      write_log($pre);
+
+      open_log();
+
+      write_log($post);
+
+      next;
     }
-    next;
+    if ($line =~ m!^ (.*?) \e\[0m\e\[2m\e\[00000m !x) {
+      # 184 marker
+      my ($pre) = ($1);
+
+      write_log($pre);
+      stop_log();
+
+      next;
+    }
+
+    write_log($line);
   }
-
-  if ($line =~ m! ^ (.*?)  \e\[0m\e\[1m\e\[00000m (.*) !x) {
-    # separator
-
-    my ($pre, $post) = ($1, $2);
-    write_log($pre);
-
-    open_log();
-
-    write_log($post);
-
-    next;
-  }
-  if ($line =~ m!^ (.*?) \e\[0m\e\[2m\e\[00000m !x) {
-    # 184 marker
-    my ($pre) = ($1);
-
-    write_log($pre);
-    stop_log();
-
-    next;
-  }
-
-  write_log($line);
+  close_log()
 }
-close_log()
+
+
+main;
