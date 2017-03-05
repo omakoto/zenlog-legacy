@@ -164,9 +164,6 @@ export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
 
-: ${ZENLOG_RUN_TEST:=0}
-export ZENLOG_RUN_TEST
-
 exec script -qf \
     -c 'export ZENLOG_TTY=$(tty); exec $ZENLOG_START_COMMAND' \
     >( "$fullname.pl" )

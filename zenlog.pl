@@ -15,6 +15,8 @@ my $command_prefix = $ENV{ZENLOG_COMMAND_PREFIX};
 
 my ($raw, $san, $cur_raw_name, $cur_san_name);
 
+my $run_test = -t STDIN;
+
 sub close_log() {
   $raw->close() if defined $raw;
   $san->close() if defined $san;
@@ -190,7 +192,9 @@ sub extract_tag($) {
   return "";
 }
 
-if ($ENV{ZENLOG_RUN_TEST}) {
+
+if ($run_test) {
+  print "Running tests...\n";
   sub check_extract_tag($$) {
     my ($expected, $input) = @_;
     my $actual = extract_tag($input);
@@ -207,6 +211,8 @@ if ($ENV{ZENLOG_RUN_TEST}) {
   check_extract_tag('AB', 'abc def " \"# "  XYZ DEF #AB');
   check_extract_tag('AB', 'abc def " \"# "  XYZ DEF ""#AB');
   check_extract_tag('', 'abc def " \"# "  XYZ DEF ""\\#AB');
+
+  exit 0;
 }
 
 open_log();
