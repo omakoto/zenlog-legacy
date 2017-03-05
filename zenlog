@@ -126,7 +126,7 @@ if (( $purge_days >= 0 )) ; then
     [[ "$res" == "y" || "$res" == "Y" ]] || exit 1
   fi
   # First, remove old log files.
-  find "$log_dir" -mindepth 1 \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -delete || true
+  find "$log_dir" -mindepth 1 \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -print || true
 
   # Remove broken links.
   find "$log_dir" -xtype l -delete || true
@@ -137,6 +137,13 @@ if (( $purge_days >= 0 )) ; then
   done
   exit 0
 fi
+
+export _zenlog_prompt_marker=$(echo -e '\e[0m\e[1m\e[00000m')
+export _zenlog_pause_marker=$(echo -e '\e[0m\e[2m\e[00000m')
+export _zenlog_resume_marker=$(echo -e '\e[0m\e[3m\e[00000m')
+export _zenlog_nolog_marker=$(echo -e '\e[0m\e[4m\e[00000m')
+export _zenlog_command_start_marker=$(echo -e '\e[0m\e[5m\e[00000m')
+export _zenlog_command_end_marker=$(echo -e '\e[0m\e[6m\e[00000m')
 
 if (( $shell_helper )) ; then
   cat "$fullname.bash"
@@ -163,6 +170,8 @@ export ZENLOG_CUR_LOG_DIR=$log_dir
 export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
 
 echo "$name: Logging to $ZENLOG_CUR_LOG_DIR ..."
+
+rm -fr "$ZENLOG_CUR_LOG_DIR/pids/$ZENLOG_PID"
 
 exec script -qf \
     -c 'export ZENLOG_TTY=$(tty); exec $ZENLOG_START_COMMAND' \

@@ -222,19 +222,20 @@ sub main() {
 
   while (defined(my $line = <>)) {
     if ($paused) {
-      if ($line =~ m! \e\[0m\e\[7m\e\[00000m !x) {
+      if ($line =~ m!\Q$ENV{_zenlog_resume_marker}\E!o) {
         $paused = 0;
       }
       next;
     }
 
-    if ($line =~ m! \e\[0m\e\[6m\e\[00000m !x) {
+    if ($line =~ m!\Q$ENV{_zenlog_pause_marker}\E!o) {
       $paused = 1;
       next;
     }
 
     # Command line and output marker.
-    if ($line =~ m! \e\[0m\e\[3m\e\[00000m (.*?) \e\[0m\e\[4m\e\[00000m !x) {
+    if ($line =~ m{ \Q$ENV{_zenlog_command_start_marker}\E
+        (.*?) \Q$ENV{_zenlog_command_end_marker}\E }xo) {
       my $command = $1;
 
       $command =~ s!^\s+!!;
@@ -270,7 +271,7 @@ sub main() {
       next;
     }
 
-    if ($line =~ m! ^ (.*?)  \e\[0m\e\[1m\e\[00000m (.*) !x) {
+    if ($line =~ m! ^ (.*?)  \Q$ENV{_zenlog_prompt_marker}\E (.*) !xo) {
       # separator
 
       my ($pre, $post) = ($1, $2);
@@ -282,7 +283,7 @@ sub main() {
 
       next;
     }
-    if ($line =~ m!^ (.*?) \e\[0m\e\[2m\e\[00000m !x) {
+    if ($line =~ m!^ (.*?) \Q$ENV{_zenlog_nolog_marker}\E !xo) {
       # 184 marker
       my ($pre) = ($1);
 

@@ -1,22 +1,14 @@
 # Zenlog shell helper.
 
 # Show it in the prompt.  zenlog uses it to split log files.
-_zenlog_prompt_marker=$(echo -e '\e[0m\e[1m\e[00000m')
 zenlog_prompt_marker() {
   echo $_zenlog_prompt_marker
 }
 
-_zenlog_remove_marker=$(echo -e '\e[0m\e[5m\e[00000m')
-zenlog_remove_marker() {
-  echo $_zenlog_remove_marker
-}
-
-_zenlog_pause_marker=$(echo -e '\e[0m\e[6m\e[00000m')
 zenlog_pause_marker() {
   echo $_zenlog_pause_marker
 }
 
-_zenlog_resume_marker=$(echo -e '\e[0m\e[7m\e[00000m')
 zenlog_resume_marker() {
   echo $_zenlog_resume_marker
 }
@@ -31,7 +23,7 @@ zenlog_resume() {
 
 # execute command without logging output.
 zenlog_nolog() {
-  echo -en '\e[0m\e[2m\e[00000m'
+  echo -n "$_zenlog_nolog_marker"
   "${@}"
 }
 
@@ -46,7 +38,9 @@ alias 186=zenlog_no_auto_184
 # Use it to echo back the entire command in pre-exec hook.
 # (Optional)
 zenlog_echo_command() {
-  echo -en "\e[0m\e[3m\e[00000m$(tr -s '\r\n' '  ' <<< "${*}")\e[0m\e[4m\e[00000m"
+  echo -n "$_zenlog_command_start_marker"
+  echo -n "$(tr -s '\r\n' '  ' <<< "${*}")"
+  echo -n "$_zenlog_command_end_marker"
   echo -e "\e[0m"
 }
 
