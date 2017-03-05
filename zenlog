@@ -105,13 +105,15 @@ log_dir=${ZENLOG_DIR:-${temp}/zenlog}
 shell_helper=0
 purge_days=-1
 purge_yes=0
+purge_delete_command="-delete"
 ZENLOG_START_COMMAND="$SHELL -l"
 
-while getopts "sd:hp:yc:" opt; do
+while getopts "sd:hp:yc:P" opt; do
   case "$opt" in
     s) shell_helper=1 ;;
     d) log_dir="$OPTARG" ;;
     p) purge_days="$OPTARG" ;;
+    P) purge_delete_command="-print" ;;
     y) purge_yes=1 ;;
     c) ZENLOG_START_COMMAND="$OPTARG" ;;
     *) usage;
@@ -126,14 +128,18 @@ if (( $purge_days >= 0 )) ; then
     [[ "$res" == "y" || "$res" == "Y" ]] || exit 1
   fi
   # First, remove old log files.
-  find "$log_dir" -mindepth 1 \( -type f -o -type l \) -ctime +$(( $purge_days - 1 )) -print || true
+  find "$log_dir/" -mindepth 1 \( -type f -o -type l \) \
+      -ctime +$(( $purge_days - 1 )) $purge_delete_command || true
 
   # Remove broken links.
-  find "$log_dir" -xtype l -delete || true
+  find "$log_dir/" -xtype l -delete || true
 
   # Then, remove all empty directories.
-  for n in 1 2 3 4 5 6; do
-    find "$log_dir" -mindepth 1 -type d -empty -delete || true
+  while true; do
+    removed="$(find "$log_dir/" -mindepth 1 -type d -empty -print -delete)"
+    if [[ -z "$removed" ]] ; then
+      break
+    fi
   done
   exit 0
 fi
