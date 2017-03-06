@@ -169,6 +169,7 @@ export ZENLOG_ALWAYS_184
 
 export ZENLOG_START_COMMAND
 export ZENLOG_CUR_LOG_DIR=$log_dir
+export ZENLOG_OUTER_TTY=$(tty)
 
 # Example: (builtin|time)
 export ZENLOG_COMMAND_PREFIX=${ZENLOG_COMMAND_PREFIX:-}
