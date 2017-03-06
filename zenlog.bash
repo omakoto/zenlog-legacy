@@ -142,5 +142,8 @@ zenlog_du() {
 zenlog_outer_tty() {
   if in_zenlog ; then
     echo $ZENLOG_OUTER_TTY;
+    return 0
+  else
+    return 1
   fi
 }
