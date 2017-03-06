@@ -138,3 +138,9 @@ zenlog_open_current_log() {
 zenlog_du() {
   du "${ZENLOG_CUR_LOG_DIR:-$ZENLOG_DIR}" "$@"
 }
+
+zenlog_outer_tty() {
+  if in_zenlog ; then
+    echo $ZENLOG_OUTER_TTY;
+  fi
+}
