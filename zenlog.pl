@@ -10,7 +10,7 @@ use File::Basename;
 
 my $zenlog_pid = $ENV{ZENLOG_PID};
 my $log_dir = $ENV{ZENLOG_CUR_LOG_DIR};
-my %always_iyayo = map {$_ => 1} split(/\s+/, $ENV{ZENLOG_ALWAYS_184});
+#my %always_iyayo = map {$_ => 1} split(/\s+/, $ENV{ZENLOG_ALWAYS_184});
 my $command_prefix = $ENV{ZENLOG_COMMAND_PREFIX};
 
 my ($raw, $san, $cur_raw_name, $cur_san_name);
@@ -257,7 +257,7 @@ sub main() {
         $exe =~ s!^ \\ !!x; # Remove first '\'.
         $exe =~ s!^ .*/ !!x; # Remove file path
 
-        if (exists($always_iyayo{$exe})) {
+        if ($exe =~ /$ENV{ZENLOG_ALWAYS_184}/o) {
           stop_log();
         } else {
           create_links("cmds", $exe);

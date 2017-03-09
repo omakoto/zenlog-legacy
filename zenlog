@@ -78,9 +78,9 @@ Usage:
           Specify log file directory.
 
     ZENLOG_ALWAYS_184
-          Specify executable names that shouldn't be logged.
+          Regex to match command names that shouldn't be logged.
           Needs to be used with zenlog_echo_command.
-          Example: export ZENLOG_ALWAYS_184="vi emacs man"
+          Example: export ZENLOG_ALWAYS_184="^(vi|emacs|man)$"
 
 EOF
   exit 1
