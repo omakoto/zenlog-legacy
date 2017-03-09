@@ -257,7 +257,7 @@ sub main() {
         $exe =~ s!^ \\ !!x; # Remove first '\'.
         $exe =~ s!^ .*/ !!x; # Remove file path
 
-        if ($exe =~ /$ENV{ZENLOG_ALWAYS_184}/o) {
+        if ($exe =~ /^$ENV{ZENLOG_ALWAYS_184}$/o) {
           stop_log();
         } else {
           create_links("cmds", $exe);

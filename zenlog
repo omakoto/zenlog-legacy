@@ -80,7 +80,7 @@ Usage:
     ZENLOG_ALWAYS_184
           Regex to match command names that shouldn't be logged.
           Needs to be used with zenlog_echo_command.
-          Example: export ZENLOG_ALWAYS_184="^(vi|emacs|man)$"
+          Example: export ZENLOG_ALWAYS_184="(vi|emacs|man)"
 
 EOF
   exit 1
