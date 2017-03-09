@@ -149,13 +149,6 @@ if (( $purge_days >= 0 )) ; then
   exit 0
 fi
 
-export _zenlog_prompt_marker=$(echo -e '\e[0m\e[1m\e[00000m')
-export _zenlog_pause_marker=$(echo -e '\e[0m\e[2m\e[00000m')
-export _zenlog_resume_marker=$(echo -e '\e[0m\e[3m\e[00000m')
-export _zenlog_nolog_marker=$(echo -e '\e[0m\e[4m\e[00000m')
-export _zenlog_command_start_marker=$(echo -e '\e[0m\e[5m\e[00000m')
-export _zenlog_command_end_marker=$(echo -e '\e[0m\e[6m\e[00000m')
-
 if (( $shell_helper )) ; then
   cat "$fullname.bash"
   exit 0
