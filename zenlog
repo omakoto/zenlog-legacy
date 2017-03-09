@@ -81,13 +81,13 @@ Usage:
           Regex to match command names that shouldn't be logged.
           (^ and $ are assumed.)
           Needs to be used with zenlog_echo_command.
-          Example: export ZENLOG_ALWAYS_184="(vi|emacs|man)"
+          Example: export ZENLOG_ALWAYS_184="(vi|emacs|man|zenlog.*)"
 
     ZENLOG_COMMAND_PREFIX
           Regex to match "prefix" commands, such as "time" and "builtin".
           (^ and $ are assumed.)
           This allows, e.g., a command "time ls -l" to be handled as "ls -l".
-          Example: export ZENLOG_COMMAND_PREFIX="(builtin|time|)"
+          Example: export ZENLOG_COMMAND_PREFIX="(builtin|time)"
 
 EOF
   exit 1

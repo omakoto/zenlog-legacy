@@ -31,6 +31,8 @@ alias 184=zenlog_nolog
 
 # Use it to avoid ZENLOG_ALWAYS_184.
 zenlog_no_auto_184() {
+  # Note it doesn't have to do anything -- 186 will just fool zenlog.pl
+  # and make it misunderstand the actual command name.
   "${@}"
 }
 alias 186=zenlog_no_auto_184
