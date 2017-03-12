@@ -243,7 +243,7 @@ sub main() {
       # write_log($line);
 
       reopen();
-      write_log("\$\e\[1;3;4m $command\e\[0m\n");
+      write_log("\$ \e[1;3;4m$command\e\[0m\n");
 
       for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
         $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
