@@ -180,4 +180,4 @@ rm -fr "$ZENLOG_CUR_LOG_DIR/pids/$ZENLOG_PID"
 
 exec script -qf \
     -c 'export ZENLOG_TTY=$(tty); exec $ZENLOG_START_COMMAND' \
-    >( "$fullname.pl" )
+    >( exec "$fullname.pl" )
