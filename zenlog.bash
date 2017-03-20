@@ -59,6 +59,7 @@ zenlog_fail_if_not_in_zenlog() {
 
 zenlog_history() {
   local filename="PPPPPPPPPPX"
+  local rilename="RRRRRRRRRRX"
   local nth=""
   local no_zenlog_check=0
   local pid=$ZENLOG_PID
@@ -67,7 +68,7 @@ zenlog_history() {
   local OPTARG
   while getopts "xrp:n:" opt; do
     case "$opt" in
-      r) filename="RRRRRRRRRRX" ;;
+      r) filename="$rilename" ;;
       p) pid="$OPTARG" ;;
       n) nth="$OPTARG" ;;
       x) no_zenlog_check=1 ;;
@@ -86,10 +87,10 @@ zenlog_history() {
       command ls "$ZENLOG_CUR_LOG_DIR"/pids/$pid/${filename:0:1}* | sort -r
     fi
   } 2>/dev/null | while read n ; do
-    [[ -f "$n" ]] && {
+    if [[ -f "$n" ]] ; then
       # Resolve symlink, but only one level.
       command ls -l "$n" | sed -e 's/.* -> //'
-    }
+    fi
   done
 }
 
