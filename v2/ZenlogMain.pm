@@ -18,7 +18,7 @@ sub start() {
   my ($reader_fd, $writer_fd) = POSIX::pipe();
   $reader_fd or die "$0: pipe() failed: $!\n";
 
-  debug("# pipe opened, read=%d, write=%d\n", $reader_fd, $writer_fd);
+  debug("Pipe opened: read=$reader_fd, write=$writer_fd\n");
 
   if (my $pid = fork()) {
     POSIX::close($reader_fd);

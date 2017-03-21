@@ -1,7 +1,7 @@
 # Zenlog core functions/variables.
 
 use strict;
-use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
+use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 1);
 
 sub PROMPT_MARKER()        { "\x1b[0m\x1b[1m\x1b[00000m" }
 sub PAUSE_MARKER()         { "\x1b[0m\x1b[2m\x1b[00000m" }
@@ -12,21 +12,27 @@ sub COMMAND_END_MARKER()   { "\x1b[0m\x1b[6m\x1b[00000m" }
 
 sub RC_FILE() { "$ENV{HOME}/.zenlogrc.pl" }
 
+sub debug(@) {
+  if (DEBUG) {
+    print("\x1b[0m\x1b[1;31m", map(s!\r*\n!\r\n!gr ,@_), "\x1b[0m"); #!
+  }
+}
+
 my %vars = ();
 
 # Start this command instead of the default shell.
-my $ZENLOG_START_COMMAND = ($ENV{ZENLOG_START_COMMAND} or "$ENV{SHELL} -l");
+our $ZENLOG_START_COMMAND = ($ENV{ZENLOG_START_COMMAND} or "$ENV{SHELL} -l");
 
 # Log directory.
-my $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
+our $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
 
 # Prefix commands are ignored when command lines are parsed;
 # for example "sudo cat" will considered to be a "cat" command.
-my $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
+our $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
     or "(?:builtin|time|sudo)");
 
 # Always not log output from these commands.
-my $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
+our $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
     or "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
 
 $vars{start_command} = \$ZENLOG_START_COMMAND;
@@ -36,11 +42,14 @@ $vars{always_184_commands} = \$ZENLOG_ALWAYS_184_COMMANDS;
 
 # Load the .zenlogrc.pl file to set up the $ZENLOG* variables.
 sub load_rc() {
+  debug("Loading ", RC_FILE, " ...\n");
   require (RC_FILE) if -f RC_FILE;
 
   $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
   # Deprecated; it's just for backward compatibility.  Don't use it.
   $ENV{ZENLOG_CUR_LOG_DIR} = $ENV{ZENLOG_DIR};
+
+  debug("ZENLOG_DIR=$ZENLOG_DIR\n");
 }
 
 # Escape a string for shell.
@@ -81,10 +90,6 @@ sub get_var($) {
   my ($name) = @_;
   die "Internal error: undefined var '$name'\n" unless exists $vars{$name};
   return ${$vars{$name}};
-}
-
-sub debug(@) {
-  print("\x1b[1;31m", @_, "\x1b[0m") if DEBUG;
 }
 
 1;

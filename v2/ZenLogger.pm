@@ -18,8 +18,17 @@ my ($raw, $san, $cur_raw_name, $cur_san_name);
 # Log sequence number.
 my $log_seq_number = 0;
 
+# Return true if we're currently logging.
+sub logging() {
+  return defined $cur_raw_name;
+}
+
 # Close current log.
 sub close_log() {
+  return unless logging;
+
+  debug("Closing log.\n");
+
   $raw->close() if defined $raw;
   $san->close() if defined $san;
   undef $raw;
@@ -28,18 +37,11 @@ sub close_log() {
   undef $cur_san_name;
 }
 
-# Return true if we're currently logging.
-sub logging() {
-  return defined $cur_raw_name;
-}
-
 # Create the P and R links to the current log files.
 sub create_prev_links($) {
   my ($link_dir) = @_;
 
   return unless logging();
-
-  $link_dir = "$LOG_DIR/$link_dir";
 
   for my $mark ( "R", "P" ) {
     my $num = 10;
@@ -70,7 +72,7 @@ sub create_links($$) {
 
   my $t = time;
 
-  my $full_dir_name = "$parent_dir_name/$dir_name/";
+  my $full_dir_name = "$LOG_DIR/$parent_dir_name/$dir_name/";
 
   my $raw_dir = sprintf('%s/RAW/%s',
       $full_dir_name,
@@ -108,6 +110,8 @@ sub open_log() {
   $cur_raw_name = $raw_name;
   $cur_san_name = $san_name;
 
+  debug("Opening ", $cur_raw_name, " and ", $cur_san_name, "\n");
+
   open($raw, ">$cur_raw_name");
   open($san, ">$cur_san_name");
 
@@ -116,7 +120,7 @@ sub open_log() {
 
   # Create and update the P/R links, and also create
   # the pids/$$/ links.
-  create_prev_links(".");
+  create_prev_links($LOG_DIR);
   create_links("pids", $$);
 }
 
@@ -146,6 +150,7 @@ sub write_log($) {
 
 # Stop logging, used for "184".
 sub stop_log() {
+  debug("Stop logging\n");
   write_log("[retracted]\n");
   close_log();
 }
@@ -214,23 +219,12 @@ sub _test_extract_comment($) {
   check_extract_tag('', 'abc def " \"# "  XYZ DEF ""\\#AB');
 }
 
-
-
-
-
-
-
-
-
-
-
-
 sub zen_logging($) {
   my ($reader) = @_;
 
-  print "Logging to '$LOG_DIR'...\n";
-
-  my $paused = 0;
+  $LOG_DIR = get_var('log_dir');
+  $PREFIX_COMMANDS = get_var('prefix_commands');
+  $ALWAYS_184_COMMANDS = get_var('always_184_commands');
 
   my $PROMPT_MARKER = PROMPT_MARKER;
   my $PAUSE_MARKER = PAUSE_MARKER;
@@ -241,6 +235,10 @@ sub zen_logging($) {
   my $PREFIX_COMMANDS = get_var('prefix_commands');
   my $ALWAYS_184_COMMANDS = get_var('always_184_commands');
 
+  make_path($LOG_DIR);
+  print "Logging to '$LOG_DIR'...\n";
+
+  my $paused = 0;
   my $no_log_next_command = 0;
 
   OUTER:
