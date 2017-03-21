@@ -18,7 +18,7 @@ sub main(@) {
   # If no arguments are provided, start new zenlog.
   if (@args == 0) {
     fail_if_in_zenlog;
-    start;
+    exit(start() == 0 ? 1 : 0);
   }
 
   # Delegate to the subcommand.
@@ -27,8 +27,8 @@ sub main(@) {
   my $subcommand_hy = $subcommand =~ s!_!-!gr; #!
 
   # See if there's a function for that.
-  if (exists $ZenlogCommands::sub_commands{$subcommand_us}) {
-    exit(&{$ZenlogCommands::sub_commands{$subcommand_us}} ? 0 : 1);
+  if (exists get_subcommands()->{$subcommand_us}) {
+    exit(&{get_subcommands()->{$subcommand_us}} ? 0 : 1);
   }
 
   # Otherwise, try to locate the command and execute it.

@@ -12,20 +12,27 @@ sub COMMAND_END_MARKER()   { "\x1b[0m\x1b[6m\x1b[00000m" }
 
 sub RC_FILE() { "$ENV{HOME}/.zenlogrc.pl" }
 
+my %vars = ();
+
 # Start this command instead of the default shell.
-our $ZENLOG_START_COMMAND = ($ENV{ZENLOG_START_COMMAND} or "$ENV{SHELL} -l");
+my $ZENLOG_START_COMMAND = ($ENV{ZENLOG_START_COMMAND} or "$ENV{SHELL} -l");
 
 # Log directory.
-our $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
+my $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
 
 # Prefix commands are ignored when command lines are parsed;
 # for example "sudo cat" will considered to be a "cat" command.
-our $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
+my $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
     or "(builtin|time|sudo)");
 
 # Always not log output from these commands.
-our $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
+my $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
     or "(vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
+
+$vars{start_command} = \$ZENLOG_START_COMMAND;
+$vars{log_dir} = \$ZENLOG_DIR;
+$vars{prefix_commands} = \$ZENLOG_PREFIX_COMMANDS;
+$vars{always_184_commands} = \$ZENLOG_ALWAYS_184_COMMANDS;
 
 # Load the .zenlogrc.pl file to set up the $ZENLOG* variables.
 sub load_rc() {
@@ -69,6 +76,12 @@ sub fail_if_in_zenlog() {
 # Die if *not* in zenlog.
 sub fail_unless_in_zenlog() {
   in_zenlog or die "Not in zenlog.\n";
+}
+
+sub get_var($) {
+  my ($name) = @_;
+  die "Internal error: undefined var '$name'\n" unless exists $vars{$name};
+  return ${$vars{$name}};
 }
 
 1;
