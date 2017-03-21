@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby2.1
+
+require_relative "libs/zencore"
+
+include Zencore;
+
+debug "a", "b", "c\n";
