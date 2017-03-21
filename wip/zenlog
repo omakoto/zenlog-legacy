@@ -5,11 +5,19 @@ use FindBin;
 use lib "$FindBin::Bin";
 use POSIX;
 use Getopt::Long;
-use ZenlogCommon;
+use Zenlog;
+use ZenlogCommands;
 
-use constant DEBUG => 0;
+use constant DEBUG => Zenlog::DEBUG;
 
-sub zenlog_start() {
+sub start_zenlog() {
+
+  print "START! -- WIP\n";
+  exit 0;
+
+  $ENV{ZENLOG_PID} = $$;
+  $ENV{ZENLOG_OUTER_TTY} = `tty` or die "$0: Unable to get tty: $!\n";
+
   my ($reader_fd, $writer_fd) = POSIX::pipe();
   $reader_fd or die "$0: pipe() failed: $!\n";
 
@@ -38,25 +46,35 @@ sub zenlog_start() {
 # Start
 #---------------------------------------------------------------------
 
-my $ZENLOG_START_COMMAND = "$ENV{SHELL} -l";
+sub main(@) {
+  my (@args) = @_;
 
-# If the rc file exists, load it.
-my $rc_file = "$ENV{HOME}/.zenlogprc";
-require $rc_file if -f $rc_file;
+  my $my_dir = $0 =~ s!^.$/!!r; #!
 
-$ENV{ZENLOG_PID} = $$;
-$ENV{ZENLOG_OUTER_TTY} = `tty` or die "$0: Unable to get tty: $!\n";
+  if (@args == 0) {
+    start_zenlog;
+  }
 
-zenlog_start()
+  my $subcommand = shift @args;
+  my $subcommand_us = $subcommand =~ s!-!_!gr; #!
+  my $subcommand_hy = $subcommand =~ s!_!-!gr; #!
 
+  if (exists $ZenlogCommands::commands{$subcommand_us}) {
+    exit &{$ZenlogCommands::commands{$subcommand_us}};
+  }
+  for my $command (
+      "$my_dir/zenlog-$subcommand",
+      "$my_dir/zenlog-$subcommand_hy",
+      "$my_dir/zenlog_$subcommand_us",
+      "zenlog-$subcommand",
+      "zenlog-$subcommand_hy",
+      "zenlog_$subcommand_us") {
+    if (-x $command) {
+      exec $command, @args;
+    }
+  }
 
+  die "$0: Unknown subcommand '$subcommand'.\n";
+}
 
-
-
-
-
-
-
-
-
-
+main(@ARGV);
