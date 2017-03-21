@@ -4,12 +4,12 @@ use strict;
 
 use constant DEBUG => 1;
 
-sub PROMPT_MARKER()        { "XX\x1b[0m\x1b[1m\x1b[00000m" }
-sub PAUSE_MARKER()         { "XX\x1b[0m\x1b[2m\x1b[00000m" }
-sub RESUME_MARKER()        { "XX\x1b[0m\x1b[3m\x1b[00000m" }
-sub NO_LOG_MARKER()        { "XX\x1b[0m\x1b[4m\x1b[00000m" }
-sub COMMAND_START_MARKER() { "XX\x1b[0m\x1b[5m\x1b[00000m" }
-sub COMMAND_END_MARKER()   { "XX\x1b[0m\x1b[6m\x1b[00000m" }
+sub PROMPT_MARKER()        { "\x1b[0m\x1b[1m\x1b[00000m" }
+sub PAUSE_MARKER()         { "\x1b[0m\x1b[2m\x1b[00000m" }
+sub RESUME_MARKER()        { "\x1b[0m\x1b[3m\x1b[00000m" }
+sub NO_LOG_MARKER()        { "\x1b[0m\x1b[4m\x1b[00000m" }
+sub COMMAND_START_MARKER() { "\x1b[0m\x1b[5m\x1b[00000m" }
+sub COMMAND_END_MARKER()   { "\x1b[0m\x1b[6m\x1b[00000m" }
 
 sub RC_FILE() { "$ENV{HOME}/.zenlogrc.pl" }
 
@@ -29,11 +29,10 @@ our $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
     or "(vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
 
 # Load the .zenlogrc.pl file to set up the $ZENLOG* variables.
-sub init_env() {
+sub load_rc() {
   require (RC_FILE) if -f RC_FILE;
 
   $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
-  $ENV{ZENLOG_CUR_LOG_DIR} = $ZENLOG_DIR;
 }
 
 # Escape a string for shell.
@@ -46,6 +45,7 @@ sub shescape($) {
   }
 }
 
+# Return true if in zenlog.
 sub in_zenlog() {
   my $tty = `tty`;
   chomp $tty;
@@ -54,10 +54,12 @@ sub in_zenlog() {
   return $in_zenlog;
 }
 
+# Die if in zenlog.
 sub fail_if_in_zenlog() {
   in_zenlog and die "Already in zenlog.\n";
 }
 
+# Die if *not* in zenlog.
 sub fail_unless_in_zenlog() {
   in_zenlog or die "Not in zenlog.\n";
 }

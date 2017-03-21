@@ -1,7 +1,18 @@
 #!/bin/bash
 
 set -e
-. <(zenlog -s)
+
+usage() {
+  cat <<'EOF'
+
+  zenlog purge-log: Purge old log files.
+
+  Usage:  zenlog purge-log -p DAYS [-P for dry run] [-y to force run]
+
+EOF
+  exit 1
+}
+
 
 purge_days=-1
 purge_yes=0
@@ -18,8 +29,7 @@ done
 shift $(($OPTIND - 1))
 
 if (( $purge_days < 0 )); then
-  $(dirname "$0")/zenlog -h
-  exit 1
+  usage
 fi
 
 if ! (( $purge_yes )) ; then
@@ -29,12 +39,12 @@ if ! (( $purge_yes )) ; then
 fi
 
 # First, remove old log files.
-find "$ZENLOG_CUR_LOG_DIR/" -mindepth 1 \( -type f -o -type l \) \
+find "$ZENLOG_DIR/" -mindepth 1 \( -type f -o -type l \) \
     -ctime +$(( $purge_days - 1 )) $purge_delete_command || true
 
 # Remove broken links.
-find "$ZENLOG_CUR_LOG_DIR/" -xtype l -delete || true
+find "$ZENLOG_DIR/" -xtype l -delete || true
 
 # Then, remove all empty directories.
-find "$ZENLOG_CUR_LOG_DIR/" -mindepth 1 -type d -print0 | sort -rz | xargs -0 rmdir 2>/dev/null || true
+find "$ZENLOG_DIR/" -mindepth 1 -type d -print0 | sort -rz | xargs -0 rmdir 2>/dev/null || true
 

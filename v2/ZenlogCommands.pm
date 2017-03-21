@@ -19,11 +19,9 @@ $commands{fail_unless_in_zenlog} = sub { return Zenlog::fail_unless_in_zenlog; }
 $commands{sh_helper} = sub {
   my $output = <<'EOF';
 export ZENLOG_DIR=%s
-export ZENLOG_CUR_LOG_DIR=%s
+export ZENLOG_DIR="$ZENLOG_DIR" # For backward compatibility.
 EOF
-  printf($output,
-      Zenlog::shescape($Zenlog::ZENLOG_DIR),
-      Zenlog::shescape($Zenlog::ZENLOG_CUR_LOG_DIR));
+  printf($output, Zenlog::shescape($Zenlog::ZENLOG_DIR));
 };
 
 

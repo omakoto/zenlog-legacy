@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -e
+
+size_k=$(df --output=avail "$ZENLOG_DIR/" | sed -e 1d)
+
+if (( $size_k > 0 )) ; then
+  echo $(( $size_k * 1024 ))
+else
+  exit 1
+fi
