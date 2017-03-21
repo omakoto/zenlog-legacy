@@ -1,7 +1,8 @@
+# Zenlog core functions/variables.
+
 package Zenlog;
 
 use strict;
-
 use constant DEBUG => 1;
 
 sub PROMPT_MARKER()        { "\x1b[0m\x1b[1m\x1b[00000m" }
@@ -24,7 +25,7 @@ our $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
 our $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
     or "(builtin|time|sudo)");
 
-# Always do not log output from these commands.
+# Always not log output from these commands.
 our $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
     or "(vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
 
@@ -33,6 +34,8 @@ sub load_rc() {
   require (RC_FILE) if -f RC_FILE;
 
   $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
+  # Deprecated; it's just for backward compatibility.  Don't use it.
+  $ENV{ZENLOG_CUR_LOG_DIR} = $ENV{ZENLOG_DIR};
 }
 
 # Escape a string for shell.
@@ -43,6 +46,12 @@ sub shescape($) {
   } else {
       return $arg;
   }
+}
+
+# shescape + convert ESC's to '\e'.
+sub shescape_ee($) {
+  my ($arg) = @_;
+  return (shescape($arg) =~ s!\x1b!\\e!rg); #!
 }
 
 # Return true if in zenlog.

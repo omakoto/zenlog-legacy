@@ -1,3 +1,5 @@
+# Zenlog main code (fork + logging.)
+
 package ZenlogMain;
 
 use strict;
@@ -15,7 +17,6 @@ sub init_env() {
   $ENV{ZENLOG_PID} = $$;
   $ENV{ZENLOG_OUTER_TTY} = `tty 2>/dev/null` or die "$0: Unable to get tty: $!\n";
 }
-
 
 sub start() {
   init_env;
