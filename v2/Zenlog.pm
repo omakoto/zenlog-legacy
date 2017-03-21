@@ -23,11 +23,11 @@ my $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
 # Prefix commands are ignored when command lines are parsed;
 # for example "sudo cat" will considered to be a "cat" command.
 my $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
-    or "(builtin|time|sudo)");
+    or "(?:builtin|time|sudo)");
 
 # Always not log output from these commands.
 my $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
-    or "(vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
+    or "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
 
 $vars{start_command} = \$ZENLOG_START_COMMAND;
 $vars{log_dir} = \$ZENLOG_DIR;

@@ -87,7 +87,7 @@ sub create_links($$) {
   symlink($cur_raw_name, "$raw_dir/$raw_file");
   symlink($cur_san_name, "$san_dir/$san_file");
 
-  create_prev_links($cur_raw_name, $cur_san_name, $full_dir_name);
+  create_prev_links($full_dir_name);
 }
 
 sub open_log() {
@@ -116,8 +116,8 @@ sub open_log() {
 
   # Create and update the P/R links, and also create
   # the pids/$$/ links.
-  create_prev_links($cur_raw_name, $cur_san_name, $log_dir);
-  create_links("pids", $zenlog_pid);
+  create_prev_links(".");
+  create_links("pids", $$);
 }
 
 sub write_log($) {
@@ -237,6 +237,7 @@ sub zen_logging($) {
   my $RESUME_MARKER = RESUME_MARKER;
   my $NO_LOG_MARKER = NO_LOG_MARKER;
   my $COMMAND_START_MARKER = COMMAND_START_MARKER;
+  my $COMMAND_END_MARKER = COMMAND_END_MARKER;
   my $PREFIX_COMMANDS = get_var('prefix_commands');
   my $ALWAYS_184_COMMANDS = get_var('always_184_commands');
 
@@ -278,11 +279,11 @@ sub zen_logging($) {
 
       # Split up the command by &&, ||, | and ;.
       # TODO: Actually tokenize the command line to avoid splitting in strings...
-      for my $single_command ( split(/( \&\& | \|\|? | \; )/xn, $command)) {
+      for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
         $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
 
         # Remove prefix commands, such as "builtin" and "time".
-        while ($single_command =~ s!^${PREFIX_COMMANDS}\s+!!on) { #!
+        while ($single_command =~ s!^${PREFIX_COMMANDS}\s+!!o) { #!
         }
 
         # Get the first token, which is the command.
@@ -292,7 +293,7 @@ sub zen_logging($) {
         $exe =~ s!^ .*/ !!x; # Remove file path
 
         if ($exe =~ /^ALWAYS_184_COMMANDS$/o) {
-          next OUTER:
+          next OUTER;
         }
         if (!logging) {
           # Open the log, and write the command in italic-bold.
