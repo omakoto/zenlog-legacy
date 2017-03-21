@@ -1,5 +1,10 @@
 # Zenlog shell helper.
 
+# Optionally get environmental variables from ~/.zenlogrc
+if [[ -f "$HOME/.zenlogrc" ]] ; then
+  . "$HOME/.zenlogrc"
+fi
+
 # Show it in the prompt.  zenlog uses it to split log files.
 zenlog_prompt_marker() {
   echo -e '\e[0m\e[1m\e[00000m'
@@ -137,10 +142,6 @@ zenlog_open_current_log() {
   zenlog_open_viewer "$(zenlog_current_log "${@}")"
 }
 
-zenlog_du() {
-  du "${ZENLOG_CUR_LOG_DIR:-$ZENLOG_DIR}" "$@"
-}
-
 zenlog_outer_tty() {
   if in_zenlog ; then
     echo $ZENLOG_OUTER_TTY;
@@ -149,3 +150,5 @@ zenlog_outer_tty() {
     return 1
   fi
 }
+
+export ZENLOG_CUR_LOG_DIR="${ZENLOG_CUR_LOG_DIR:-ZENLOG_DIR}"

@@ -18,11 +18,16 @@ Usage:
   zenlog [-d LOG_DIR]
     Start a new shell.
 
-  zenlog -p DAYS
+  zenlog purge-log [-y] -p DAYS
     Purge logs older than N days and exit.
 
-  zenlog -f
-    Show the free space size of the log disk in 1K blocks.
+  zenlog free-space
+    Show the free space size of the log disk in bytes.
+
+  zenlog du
+    Execute du on the log directory.
+    Example:
+      zenlog_du -h
 
   . <(zenlog -s)
      Install the helper functions on a bash-like shell.
@@ -71,11 +76,6 @@ Usage:
           perform auto-184.
           See also ZENLOG_ALWAYS_184.
 
-      - zenlog_du
-          Execute du on the log directory.
-          Example:
-            zenlog_du -h
-
   Environmental variables:
     ZENLOG_DIR
           Specify log file directory.
@@ -96,12 +96,8 @@ EOF
   exit 1
 }
 
-# Optionally get environmental variables from ~/.zenlogrc
-if [[ -f "$HOME/.zenlogrc" ]] ; then
-  . "$HOME/.zenlogrc"
-fi
-
 my_full_name="$(readlink -f "$0")"
+my_dir="$(dirname "$my_full_name")"
 my_name="$(basename "$my_full_name")"
 
 . "$my_full_name.bash"
@@ -111,8 +107,8 @@ log_dir=${ZENLOG_DIR:-${temp}/zenlog}
 
 shell_helper=0
 purge_days=-1
-purge_yes=0
-purge_delete_command="-delete"
+purge_yes=
+purge_dry_run=
 show_free_space=0
 : ${ZENLOG_START_COMMAND:="$SHELL -l"}
 
@@ -121,7 +117,7 @@ while getopts "fsd:hp:yc:P" opt; do
     s) shell_helper=1 ;;
     d) log_dir="$OPTARG" ;;
     p) purge_days="$OPTARG" ;;
-    P) purge_delete_command="-print" ;;
+    P) purge_dry_run=1 ;;
     y) purge_yes=1 ;;
     c) ZENLOG_START_COMMAND="$OPTARG" ;;
     f) show_free_space=1 ;;
@@ -130,40 +126,19 @@ while getopts "fsd:hp:yc:P" opt; do
 done
 shift $(($OPTIND - 1))
 
-# Handle -f.
+# Legacy option: -f => execute zenlog free-space.
 if (( $show_free_space )) ; then
-  df --output=avail $ZENLOG_DIR/ | sed -e 1d
-  exit ${PIPESTATUS[0]}
+  exec "$0" free-space
 fi
 
-# Handle -p.
+# Legacy option: -p => execute zenlog purge-log.
 if (( $purge_days >= 0 )) ; then
-  if ! (( $purge_yes )) ; then
-    echo -n "$my_name: Purging logs older than $purge_days days? (y/N) "
-    read res
-    [[ "$res" == "y" || "$res" == "Y" ]] || exit 1
-  fi
-  # First, remove old log files.
-  find "$log_dir/" -mindepth 1 \( -type f -o -type l \) \
-      -ctime +$(( $purge_days - 1 )) $purge_delete_command || true
-
-  # Remove broken links.
-  find "$log_dir/" -xtype l -delete || true
-
-  # Then, remove all empty directories.
-  while true; do
-    removed="$(find "$log_dir/" -mindepth 1 -type d -empty -print -delete)"
-    if [[ -z "$removed" ]] ; then
-      break
-    fi
-  done
-  exit 0
+  exec "$0" purge-log -p $purge_days ${purge_yes:+-y} ${purge_dry_run:+-P}
 fi
 
 # Handle -s.
 if (( $shell_helper )) ; then
-  cat "$my_full_name.bash"
-  exit 0
+  exec cat "$my_full_name.bash"
 fi
 
 # Handle zenlog sub-command
@@ -174,7 +149,9 @@ if (( $# > 0 )) ; then
   for full_command in \
       "$candidate" \
       "${candidate//-/_}" \
-      "${candidate//_/-}"; do
+      "${candidate//_/-}" \
+      "${my_dir}/${candidate//_/-}" \
+      ; do
     if type "$full_command" >&/dev/null ; then
       "$full_command" "$@"
       exit $?
