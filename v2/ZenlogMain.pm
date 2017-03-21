@@ -18,8 +18,7 @@ sub start() {
   my ($reader_fd, $writer_fd) = POSIX::pipe();
   $reader_fd or die "$0: pipe() failed: $!\n";
 
-  printf STDERR ("# pipe opened, read=%d, write=%d\n",
-      $reader_fd, $writer_fd) if DEBUG;
+  debug("# pipe opened, read=%d, write=%d\n", $reader_fd, $writer_fd);
 
   if (my $pid = fork()) {
     POSIX::close($reader_fd);
@@ -29,7 +28,7 @@ sub start() {
         "-fqc",
         "export ZENLOG_TTY=\$(tty); exec $start_command",
         "/proc/self/fd/$writer_fd");
-    print("Starting: ", join(" ", map(shescape($_), @command)), "\n") if DEBUG;
+    debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
 
     exec(@command) or die "$0: failed to start script: $!\n";
   }

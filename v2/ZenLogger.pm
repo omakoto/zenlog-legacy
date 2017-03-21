@@ -247,26 +247,26 @@ sub zen_logging($) {
   while (defined(my $line = <$reader>)) {
     if ($paused) {
       # When pausing, just skip until the next resume marker.
-      if ($line =~ m!$RESUME_MARKER!o) {
+      if ($line =~ m!\Q $RESUME_MARKER \E!xo) {
         $paused = 0;
       }
       next;
     }
 
-    if ($line =~ m!$PAUSE_MARKER!o) {
+    if ($line =~ m!\Q $PAUSE_MARKER \E!xo) {
       # Pause marker detected.
       $paused = 1;
       next;
     }
 
-    if ($line =~ m! $NO_LOG_MARKER !xo) {
+    if ($line =~ m!\Q $NO_LOG_MARKER \E!xo) {
       # 184 marker, skip the next command.
       $no_log_next_command = 1;
       next;
     }
 
     # Command line and output marker.
-    if ($line =~ m! $COMMAND_START_MARKER (.*?) $COMMAND_END_MARKER !xo) {
+    if ($line =~ m! \Q$COMMAND_START_MARKER\E (.*?) \Q$COMMAND_END_MARKER\E !xo) {
       my $command = $1;
 
       if ($no_log_next_command) {
@@ -310,25 +310,16 @@ sub zen_logging($) {
     }
     next unless logging;
 
-    if ($line =~ m!^ (.*) $PROMPT_MARKER !xo) {
+    if ($line =~ m!^ (.*) \Q $PROMPT_MARKER \E !xo) {
       # Prompt detected.
       my $rest = $1;
       write_log $rest if $1;
       next;
     }
-    if ($line =~ m! \e\[0m\e\[4m\e\[00000m !xo) {
-      # 184 marker
-      my ($pre) = ($1);
-
-      write_log($pre);
-      stop_log();
-
-      next;
-    }
     write_log($line);
   }
   close_log();
-  print "Logger finishing.\n" if DEBUG;
+  debug "Logger finishing.\n";
 }
 
 1;

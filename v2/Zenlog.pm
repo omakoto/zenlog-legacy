@@ -1,7 +1,7 @@
 # Zenlog core functions/variables.
 
 use strict;
-use constant DEBUG => 1;
+use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
 
 sub PROMPT_MARKER()        { "\x1b[0m\x1b[1m\x1b[00000m" }
 sub PAUSE_MARKER()         { "\x1b[0m\x1b[2m\x1b[00000m" }
@@ -64,7 +64,6 @@ sub in_zenlog() {
   my $tty = `tty`;
   chomp $tty;
   my $in_zenlog = ($ENV{ZENLOG_TTY} eq $tty);
-  # print "in-zenlog -> $in_zenlog\n" if DEBUG;
   return $in_zenlog;
 }
 
@@ -82,6 +81,10 @@ sub get_var($) {
   my ($name) = @_;
   die "Internal error: undefined var '$name'\n" unless exists $vars{$name};
   return ${$vars{$name}};
+}
+
+sub debug(@) {
+  print("\x1b[1;31m", @_, "\x1b[0m") if DEBUG;
 }
 
 1;
