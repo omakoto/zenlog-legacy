@@ -6,6 +6,7 @@ use File::Path qw(make_path);
 use File::Basename;
 
 use Zenlog;
+use ZenlogUtils;
 
 # Config.
 my $LOG_DIR = get_var('log_dir');
@@ -148,70 +149,6 @@ sub write_log($) {
   $san->print($line) if defined $san;
 }
 
-# Extract the comment, if exists, from a command line.
-sub extract_comment($) {
-  my ($file) = @_;
-
-  my $i = 0;
-  my $next_char = sub {
-    return undef if $i >= length($file);
-    return substr($file, $i++, 1);
-  };
-  my $ch;
-
-  OUTER:
-  while (defined($ch = &$next_char())) {
-    if ($ch eq '#') {
-      # Remove the leading spaces and return.
-      return substr($file, $i) =~ s/^\s+//r; #/
-    }
-    if ($ch eq '\\') {
-      $i++;
-      next;
-    }
-    if ($ch eq "\'") {
-      while (defined($ch = &$next_char())) {
-        if ($ch eq "\'") {
-          next OUTER;
-        }
-      }
-      return "";
-    }
-    if ($ch eq "\"") {
-      while (defined($ch = &$next_char())) {
-        if ($ch eq '\\') {
-          $i++;
-          next;
-        }
-        if ($ch eq "\"") {
-          next OUTER;
-        }
-      }
-      return "";
-    }
-  }
-  return "";
-}
-
-sub _test_extract_comment($) {
-  sub check_extract_tag($$) {
-    my ($expected, $input) = @_;
-    my $actual = extract_tag($input);
-    die "Expected '$expected' for '$input', but got '$actual'\n" unless $actual eq $expected;
-  }
-  check_extract_tag('', '');
-  check_extract_tag('', 'abc');
-  check_extract_tag('', 'abc def');
-  check_extract_tag('XYZ DEF #AB', 'abc def #  XYZ DEF #AB');
-  check_extract_tag('AB', 'abc def \\#  XYZ DEF #AB');
-  check_extract_tag('XYZ DEF #AB', 'abc def \\\\#  XYZ DEF #AB');
-  check_extract_tag('AB', "abc def ' # '  XYZ DEF #AB");
-  check_extract_tag('AB', 'abc def " # "  XYZ DEF #AB');
-  check_extract_tag('AB', 'abc def " \"# "  XYZ DEF #AB');
-  check_extract_tag('AB', 'abc def " \"# "  XYZ DEF ""#AB');
-  check_extract_tag('', 'abc def " \"# "  XYZ DEF ""\\#AB');
-}
-
 sub zen_logging($) {
   my ($reader) = @_;
 
@@ -267,6 +204,7 @@ sub zen_logging($) {
 
       # Split up the command by &&, ||, | and ;.
       # TODO: Actually tokenize the command line to avoid splitting in strings...
+      my @exes = ();
       for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
         $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
 
@@ -280,14 +218,18 @@ sub zen_logging($) {
         $exe =~ s!^ \\ !!x; # Remove first '\'.
         $exe =~ s!^ .*/ !!x; # Remove file path
 
-        if ($exe =~ /^ALWAYS_184_COMMANDS$/o) {
+        debug("Exe: ", $exe, "\n");
+        if ($exe =~ /^$ALWAYS_184_COMMANDS$/o) {
+          debug("Always no-log detected.\n");
           next OUTER;
         }
-        if (!logging) {
-          # Open the log, and write the command in italic-bold.
-          open_log();
-          write_log("\$ \e[1;3;4m$command\e\[0m\n");
-        }
+        push @exes, $exe;
+      }
+      # Always-184 command not detected.
+      # Open the log, and write the command in italic-bold.
+      open_log();
+      write_log("\$ \e[1;3;4m$command\e\[0m\n");
+      for my $exe (@exes) {
         create_links("cmds", $exe);
       }
 

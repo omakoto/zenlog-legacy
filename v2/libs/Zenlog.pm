@@ -1,7 +1,7 @@
 # Zenlog core functions/variables.
 
 use strict;
-use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 1);
+use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
 
 sub PROMPT_MARKER()        { "\x1b[0m\x1b[1m\x1b[00000m" }
 sub PAUSE_MARKER()         { "\x1b[0m\x1b[2m\x1b[00000m" }
