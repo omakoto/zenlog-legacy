@@ -1,31 +1,29 @@
 # Zenlog subcommands.
 
-package ZenlogCommands;
-
 use strict;
 use Zenlog;
 
-our %commands = ();
+my %sub_commands = ();
 
-$commands{prompt_marker} = sub { print Zenlog::PROMPT_MARKER; };
-$commands{pause_marker} = sub { print Zenlog::PAUSE_MARKER; };
-$commands{resume_marker} = sub { print Zenlog::RESUME_MARKER; };
-$commands{no_log_marker} = sub { print Zenlog::NO_LOG_MARKER; };
-$commands{command_start_marker} = sub { print Zenlog::COMMAND_START_MARKER; };
-$commands{command_end_marker} = sub { print Zenlog::COMMAND_END_MARKER; };
+$sub_commands{prompt_marker} = sub { print PROMPT_MARKER; };
+$sub_commands{pause_marker} = sub { print PAUSE_MARKER; };
+$sub_commands{resume_marker} = sub { print RESUME_MARKER; };
+$sub_commands{no_log_marker} = sub { print NO_LOG_MARKER; };
+$sub_commands{command_start_marker} = sub { print COMMAND_START_MARKER; };
+$sub_commands{command_end_marker} = sub { print COMMAND_END_MARKER; };
 
-$commands{in_zenlog} = sub { return Zenlog::in_zenlog; };
-$commands{fail_if_in_zenlog} = sub { return Zenlog::fail_if_in_zenlog; };
-$commands{fail_unless_in_zenlog} = sub { return Zenlog::fail_unless_in_zenlog; };
+$sub_commands{in_zenlog} = sub { return in_zenlog; };
+$sub_commands{fail_if_in_zenlog} = sub { return fail_if_in_zenlog; };
+$sub_commands{fail_unless_in_zenlog} = sub { return fail_unless_in_zenlog; };
 
 # Print outer-tty, only when in-zenlog.
-$commands{outer_tty} = sub {
-  return 0 unless Zenlog::in_zenlog;
+$sub_commands{outer_tty} = sub {
+  return 0 unless in_zenlog;
   print $ENV{ZENLOG_OUTER_TTY}, "\n";
   return 1;
 };
 
-$commands{sh_helper} = sub {
+$sub_commands{sh_helper} = sub {
 
   # Note in this script, ESC characters are converted into "\e", so that
   # output from the set command won't contain special characters.
@@ -61,7 +59,7 @@ zenlog_no_auto_184() {
 alias 186=zenlog_no_auto_184
 
 EOF
-  printf($output, Zenlog::shescape_ee(Zenlog::NO_LOG_MARKER));
+  printf($output, shescape_ee(NO_LOG_MARKER));
 };
 
 

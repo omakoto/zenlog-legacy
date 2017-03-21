@@ -1,7 +1,5 @@
 # Zenlog main code (fork + logging.)
 
-package ZenlogMain;
-
 use strict;
 use POSIX;
 use Time::HiRes qw(time);
@@ -10,8 +8,6 @@ use File::Basename;
 
 use Zenlog;
 use ZenlogCommands;
-
-use constant DEBUG => Zenlog::DEBUG;
 
 sub init_env() {
   $ENV{ZENLOG_PID} = $$;

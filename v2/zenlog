@@ -7,20 +7,18 @@ use Zenlog;
 use ZenlogCommands;
 use ZenlogMain;
 
-use constant DEBUG => Zenlog::DEBUG;
-
 #=====================================================================
 sub main(@) {
   my (@args) = @_;
 
   my $my_dir = $0 =~ s!/[^/]+?$!!r; #!
 
-  Zenlog::load_rc;
+  load_rc;
 
   # If no arguments are provided, start new zenlog.
   if (@args == 0) {
-    Zenlog::fail_if_in_zenlog;
-    ZenlogMain::start;
+    fail_if_in_zenlog;
+    start;
   }
 
   # Delegate to the subcommand.
@@ -29,8 +27,8 @@ sub main(@) {
   my $subcommand_hy = $subcommand =~ s!_!-!gr; #!
 
   # See if there's a function for that.
-  if (exists $ZenlogCommands::commands{$subcommand_us}) {
-    exit(&{$ZenlogCommands::commands{$subcommand_us}} ? 0 : 1);
+  if (exists $ZenlogCommands::sub_commands{$subcommand_us}) {
+    exit(&{$ZenlogCommands::sub_commands{$subcommand_us}} ? 0 : 1);
   }
 
   # Otherwise, try to locate the command and execute it.

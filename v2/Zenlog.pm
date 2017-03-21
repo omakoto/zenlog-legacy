@@ -1,7 +1,5 @@
 # Zenlog core functions/variables.
 
-package Zenlog;
-
 use strict;
 use constant DEBUG => 1;
 
