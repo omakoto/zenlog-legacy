@@ -52,8 +52,8 @@ sub create_prev_links($) {
     }
   }
 
-  symlink($raw, "${link_dir}/R");
-  symlink($san, "${link_dir}/P");
+  symlink($cur_raw_name, "${link_dir}/R");
+  symlink($cur_san_name, "${link_dir}/P");
 }
 
 # Create symlinks.
@@ -148,13 +148,6 @@ sub write_log($) {
   $san->print($line) if defined $san;
 }
 
-# Stop logging, used for "184".
-sub stop_log() {
-  debug("Stop logging\n");
-  write_log("[retracted]\n");
-  close_log();
-}
-
 # Extract the comment, if exists, from a command line.
 sub extract_comment($) {
   my ($file) = @_;
@@ -239,38 +232,35 @@ sub zen_logging($) {
   print "Logging to '$LOG_DIR'...\n";
 
   my $paused = 0;
-  my $no_log_next_command = 0;
 
   OUTER:
   while (defined(my $line = <$reader>)) {
     if ($paused) {
       # When pausing, just skip until the next resume marker.
-      if ($line =~ m!\Q $RESUME_MARKER \E!xo) {
+      if ($line =~ m!\Q$RESUME_MARKER\E!o) {
         $paused = 0;
       }
       next;
     }
 
-    if ($line =~ m!\Q $PAUSE_MARKER \E!xo) {
+    if ($line =~ m!\Q$PAUSE_MARKER\E!o) {
       # Pause marker detected.
+      debug("Still paused.\n");
       $paused = 1;
       next;
     }
 
-    if ($line =~ m!\Q $NO_LOG_MARKER \E!xo) {
+    if ($line =~ m!\Q$NO_LOG_MARKER\E!o) {
       # 184 marker, skip the next command.
-      $no_log_next_command = 1;
+      debug("No-log marker detected.\n");
+      write_log("[retracted]\n");
+      close_log();
       next;
     }
 
     # Command line and output marker.
     if ($line =~ m! \Q$COMMAND_START_MARKER\E (.*?) \Q$COMMAND_END_MARKER\E !xo) {
       my $command = $1;
-
-      if ($no_log_next_command) {
-        $no_log_next_command = 0;
-        next OUTER;
-      }
 
       $command =~ s!^\s+!!;
       $command =~ s!\s+$!!;
@@ -308,10 +298,12 @@ sub zen_logging($) {
     }
     next unless logging;
 
-    if ($line =~ m!^ (.*) \Q $PROMPT_MARKER \E !xo) {
+    if ($line =~ m!^ (.*) \Q$PROMPT_MARKER\E !xo) {
+      debug("Prompt detected.\n");
       # Prompt detected.
       my $rest = $1;
       write_log $rest if $1;
+      close_log;
       next;
     }
     write_log($line);
