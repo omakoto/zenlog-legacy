@@ -27,19 +27,27 @@ sub zenlog_start() {
   # Child
   POSIX::close($writer_fd);
   open(my $reader, "<&=", $reader_fd) or die "$0: fdopen failed: $!\n";
+
+  while (defined(my $line = <$reader>)) {
+    print ">>> ", $line;
+  }
+  print "Logger finishing.\n";
 }
 
 #---------------------------------------------------------------------
 # Start
 #---------------------------------------------------------------------
 
-my $zenlog_start_command = "$ENV{SHELL} -l";
+my $ZENLOG_START_COMMAND = "$ENV{SHELL} -l";
 
 # If the rc file exists, load it.
-my $RC_FILE = "$ENV{HOME}/.zenlogprc";
-require $RC_FILE if -f $RC_FILE;
+my $rc_file = "$ENV{HOME}/.zenlogprc";
+require $rc_file if -f $rc_file;
 
+$ENV{ZENLOG_PID} = $$;
+$ENV{ZENLOG_OUTER_TTY} = `tty` or die "$0: Unable to get tty: $!\n";
 
+zenlog_start()
 
 
 
