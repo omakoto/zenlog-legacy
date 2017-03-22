@@ -24,6 +24,10 @@ R reverse=tac         # Reverse order (newer fast).
 t no_command=1        # Content only (no command line).
 " "$@")"
 
+if (( $num_commands == 1 )) ; then
+  single=1
+fi
+
 files=$(zenlog_history $raw | tail -$num_commands | $reverse | {
   if (( $single )) ; then
     head -1
