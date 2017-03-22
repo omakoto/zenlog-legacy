@@ -20,8 +20,6 @@ sub debug(@) {
 }
 
 my $PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
-# my $PAUSE_MARKER =          "\x1b[0m\x1b[2m\x1b[00000m";
-# my $RESUME_MARKER =         "\x1b[0m\x1b[3m\x1b[00000m";
 my $NO_LOG_MARKER =         "\x1b[0m\x1b[4m\x1b[00000m";
 my $COMMAND_START_MARKER =  "\x1b[0m\x1b[5m\x1b[00000m";
 my $COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
@@ -158,16 +156,12 @@ sub extract_comment($) {
 our %sub_commands = ();
 
 $sub_commands{prompt_marker} = sub { print $PROMPT_MARKER; };
-# $sub_commands{pause_marker} = sub { print $PAUSE_MARKER; };
-# $sub_commands{resume_marker} = sub { print $RESUME_MARKER; };
 $sub_commands{no_log_marker} = sub { print $NO_LOG_MARKER; };
 # They're not needed by the outer world.
 # $sub_commands{command_start_marker} = sub { print COMMAND_START_MARKER; };
 # $sub_commands{command_end_marker} = sub { print COMMAND_END_MARKER; };
 
 # Aliases.
-# $sub_commands{pause} = $sub_commands{pause_marker};
-# $sub_commands{resume} = $sub_commands{resume_marker};
 $sub_commands{no_log} = $sub_commands{no_log_marker};
 
 $sub_commands{in_zenlog} = sub { return in_zenlog; };
@@ -188,6 +182,19 @@ $sub_commands{ensure_log_dir} = sub {
     print STDERR "Error: \$ZENLOG_DIR not set.\n";
     return 0;
   };
+};
+
+$sub_commands{logger_pipe} = sub {
+  my $shell_pid = $ENV{ZENLOG_SHELL_PID} // -1;
+  my $shell_fd = $ENV{ZENLOG_SHELL_FD} // -1;
+  my $path = "/proc/$shell_pid/fd/$shell_fd";
+  debug "path=", $path, "\n";
+  if (! (in_zenlog and -e $path)) {
+    print "/dev/null\n";
+    return 1;
+  }
+  print $path, "\n";
+  return 0;
 };
 
 # Print outer-tty, only when in-zenlog.
@@ -495,7 +502,10 @@ sub start() {
     my $start_command = $ZENLOG_START_COMMAND;
     my @command = ("script",
         "-fqc",
-        "export ZENLOG_TTY=\$(tty); exec $start_command",
+        "export ZENLOG_TTY=\$(tty);"
+        . "export ZENLOG_SHELL_PID=\$\$;"
+        . "export ZENLOG_SHELL_FD=$writer_fd;"
+        . "exec $start_command",
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
     if (!exec(@command)) {
