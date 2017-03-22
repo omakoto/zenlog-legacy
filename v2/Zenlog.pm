@@ -177,6 +177,15 @@ $sub_commands{outer_tty} = sub {
   return 1;
 };
 
+$sub_commands{ensure_log_dir} = sub {
+  if ($ENV{ZENLOG_DIR}) {
+    return 1;
+  } else {
+    print STDERR "Error: \$ZENLOG_DIR not set.\n";
+    return 0;
+  };
+};
+
 # Print outer-tty, only when in-zenlog.
 $sub_commands{show_command} = sub {
   return 0 unless in_zenlog;
@@ -460,6 +469,7 @@ sub export_env() {
 }
 
 sub start() {
+  load_rc;
   export_env;
 
   my ($reader_fd, $writer_fd) = POSIX::pipe();
@@ -499,8 +509,6 @@ sub main(@) {
   my (@args) = @_;
 
   my $exe_dir = $0 =~ s!/[^/]+?$!!r; #!
-
-  load_rc;
 
   # If no arguments are provided, start new zenlog.
   if (@args == 0) {

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -e
+
+${0%/*}/zenlog ensure-log-dir
+
+filename="PPPPPPPPPPX"
+rilename="RRRRRRRRRRX"
+nth=""
+pid=$ZENLOG_PID
+
+while getopts "rp:n:" opt; do
+case "$opt" in
+  r) filename="$rilename" ;;
+  p) pid="$OPTARG" ;;
+  n) nth="$OPTARG" ;;
+  *) return 1;;
+esac
+done
+shift $(($OPTIND - 1))
+
+{
+if [[ -n "$nth" ]] ; then
+  command ls "$ZENLOG_CUR_LOG_DIR/pids/$pid/${filename:0:$(($nth + 1))}"
+else
+  command ls "$ZENLOG_CUR_LOG_DIR"/pids/$pid/${filename:0:1}* | sort -r
+fi
+} 2>/dev/null | while read n ; do
+if [[ -f "$n" ]] ; then
+  # Resolve symlink, but only one level.
+  command ls -l "$n" | sed -e 's/.* -> //'
+fi
+done
