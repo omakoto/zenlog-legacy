@@ -82,10 +82,18 @@ sub shescape_ee($) {
   return (shescape($arg) =~ s!\x1b!\\e!rg); #!
 }
 
+# Get the tty associated with the current process.
+sub get_process_tty() {
+  my $tty = qx(ps -o tty -p $$ --no-header 2>/dev/null);
+  chomp $tty;
+  $tty = "/dev/$tty" if $tty;
+  debug("tty=", $tty, "\n");
+  return $tty;
+}
+
 # Return true if in zenlog.
 sub in_zenlog() {
-  my $tty = `tty`;
-  chomp $tty;
+  my $tty = get_process_tty();
   my $in_zenlog = (($ENV{ZENLOG_TTY} // "") eq $tty);
   return $in_zenlog;
 }
@@ -184,6 +192,17 @@ $sub_commands{ensure_log_dir} = sub {
   };
 };
 
+$sub_commands{process_tty} = sub {
+  my $tty = get_process_tty;
+  if ($tty) {
+    print $tty, "\n";
+    return 1;
+  } else {
+    return 0;
+  }
+};
+
+
 sub get_logger_pipe() {
   my $pipe = $ENV{ZENLOG_LOGGER_PIPE} // "";
   if (in_zenlog and -e $pipe) {
@@ -232,9 +251,9 @@ $sub_commands{sh_helper} = sub {
   # output from the set command won't contain special characters.
 
   my $output = <<'EOF';
-# Equivalent to zenlog in-zenlog.  Inlined for performance.
+# Return sucess when in zenlog.
 function in_zenlog() {
-  [[ "$ZENLOG_TTY" == $(tty) ]]
+  zenlog in-zenlog
 }
 
 # Run a command without logging the output.
