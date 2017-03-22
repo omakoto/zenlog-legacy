@@ -16,7 +16,7 @@ RC_FILE =  "#{ENV['HOME']}/.zenlogrc.rb";
 # Show debug message.
 def debug(*message)
   return unless DEBUG;
-  print "\x1b[0m\x1b[1;31m", message.join(" "), "\x1b[0m";
+  print "\x1b[0m\x1b[1;31m", message.join(""), "\x1b[0m";
 end
 
 # Configuration.
@@ -39,6 +39,8 @@ class ZenConfig
     return config;
   end
 
+  attr_reader :start_command, :log_dir, :prefix_commands, :always_no_log_commands;
+
 private
   def initialize(start_command, log_dir, prefix_commands, always_no_log_commands)
     @start_command = start_command;
@@ -48,27 +50,73 @@ private
   end
 
   def self.get_env(env_name, default)
-    val = ENV['ZENLOG_START_COMMAND']
+    val = ENV[env_name]
     return val ? val : default;
   end
 end
+#-----------------------------------------------------------
 
-
-def load_rc()
-  if File.exist?(RC_FILE)
-    debug("Loading ", RC_FILE, " ...\n");
-    require RC_FILE;
+# Shell escape.
+def shescape(str)
+  if %r![^a-zA-Z0-9\-\.\_\/]!.match(str)
+    return "'" + str.gsub(%r!'!, %q['\\\\'']) + "'";
+  else
+    return str
   end
-
-  config = ZenConfig.new(
-      get_env('ZENLOG_START_COMMAND', "#{ENV['SHELL']} -l"),
-      get_env('ZENLOG_DIR', "/tmp/zenlog/"),
-      get_env('ZENLOG_PREFIX_COMMANDS', "(?:builtin|time|sudo)"),
-      get_env('ZENLOG_ALWAYS_184_COMMANDS',
-      "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)"));
-
-  debug("Config=", config.inspect, "\n");
-  return config;
 end
 
-config = ZenConfig.load;
+
+#-----------------------------------------------------------
+class Zenlog
+
+  def initialize()
+    @config = ZenConfig.load;
+  end
+
+  def start()
+    export_env
+
+    reader, writer = IO.pipe;
+    writer.close_on_exec = false;
+    debug "Pipe opened: reader=", reader.fileno, " writer=", writer.fileno, "\n";
+
+    child_pid = fork;
+    if !child_pid
+      debug ">> In child.\n";
+      command = ["script",
+          "-fqc",
+          "export ZENLOG_TTY=\$(tty); exec #{@config.start_command}",
+          "/proc/self/fd/#{writer.fileno}"];
+      debug("Starging: ", command.map{|s| shescape s}.join(" "), "\n");
+      exec *command, close_others: false;
+      # exec failed.
+      STDERR.puts("exec failed.")
+      kill 'INT', Process.ppid;
+      exit 1;
+    end
+    debug ">> In parent.\n";
+    writer.close
+
+    reader.each do |line|
+      print ">>>", line;
+    end
+
+    Process.waitpid child_pid
+    return true
+  end
+
+private
+  def export_env()
+    ENV['ZENLOG_PID'] = Process.pid.to_s;
+    ENV['ZENLOG_OUTER_TTY'] = %x(tty 2>/dev/null);
+    ENV['ZENLOG_DIR'] = @config.log_dir;
+
+    # Deprecated; it's just for backward compatibility.  Don't use it.
+    ENV['ZENLOG_CUR_LOG_DIR'] = @config.log_dir;
+  end
+end
+
+
+
+zenlog = Zenlog.new;
+zenlog.start;
