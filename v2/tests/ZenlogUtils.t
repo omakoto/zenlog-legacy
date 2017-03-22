@@ -1,14 +1,15 @@
 #!/usr/bin/perl -w
 
 use strict;
-use FindBin;
-use lib "$FindBin::Bin/../libs";
-use ZenlogUtils;
+
+BEGIN {
+  require ($0 =~ s!/[^/]+$!!r) . "/../Zenlog.pm"; #!
+}
 
 sub test_extract_comment() {
   sub check_extract_tag($$) {
     my ($expected, $input) = @_;
-    my $actual = extract_comment($input);
+    my $actual = Zenlog::extract_comment($input);
     die "Expected '$expected' for '$input', but got '$actual'\n" unless $actual eq $expected;
   }
   check_extract_tag('', '');

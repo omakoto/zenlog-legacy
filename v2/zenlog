@@ -2,53 +2,7 @@
 
 use strict;
 use FindBin;
-use lib "$FindBin::Bin/libs";
+use lib "$FindBin::Bin";
 use Zenlog;
-use ZenlogCommands;
-use ZenlogMain;
 
-sub main(@) {
-  my (@args) = @_;
-
-  my $exe_dir = $0 =~ s!/[^/]+?$!!r; #!
-
-  load_rc;
-
-  # If no arguments are provided, start new zenlog.
-  if (@args == 0) {
-    fail_if_in_zenlog;
-    exit(start() == 0 ? 1 : 0);
-  }
-
-  # Otherwise, start a subcommand.
-
-  # Delegate to the subcommand.
-  my $subcommand = shift @args;
-  debug("Running subcommand: ", $subcommand, "\n");
-
-  my $subcommand_us = $subcommand =~ s!-!_!gr; #!
-  my $subcommand_hy = $subcommand =~ s!_!-!gr; #!
-
-  # See if there's a function for that.
-  if (exists get_subcommands()->{$subcommand_us}) {
-    exit(&{get_subcommands()->{$subcommand_us}} ? 0 : 1);
-  }
-
-  # Otherwise, try to locate the command and execute it.
-  for my $command (
-      "zenlog-$subcommand",
-      "zenlog-$subcommand_hy",
-      "zenlog_$subcommand_us") {
-    # Find along with PATH, but check the script dir first.
-    for my $path ($exe_dir, split(/:/, $ENV{PATH})) {
-      my $c = "$path/$command";
-      if (-X $c) {
-        exec($c, @args) or exit 1;
-      }
-    }
-  }
-
-  die "zenlog: Unknown subcommand '$subcommand'.\n";
-}
-
-main(@ARGV);
+Zenlog::main(@ARGV);
