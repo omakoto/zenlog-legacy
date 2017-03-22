@@ -1,0 +1,90 @@
+# -*- mode:shell-script -*-
+# Zenlog compatibility shell functions.
+
+set -e
+script_dir="${0%/*}/"
+
+
+"${script_dir}"zenlog sh-helper
+
+cat <<'EOF'
+
+zenlog_prompt_marker() {
+  "${script_dir}"zenlog prompt-marker
+}
+
+zenlog_pause_marker() {
+  : # deprecated
+}
+
+zenlog_resume_marker() {
+  : # deprecated
+}
+
+zenlog_pause() {
+  : # deprecated
+}
+
+zenlog_resume() {
+  : # deprecated
+}
+
+zenlog_echo_command() {
+  "${script_dir}"zenlog show-command "$@"
+}
+
+zenlog_fail_if_not_in_zenlog() {
+  "${script_dir}"zenlog fail-unless-in-zenlog
+}
+
+zenlog_history() {
+  "${script_dir}"zenlog history "@"
+}
+
+zenlog_last_log() {
+  # Provide the default "n" at the beginning, so it can be overridden.
+  zenlog_history -n 1 "${@}"
+}
+
+zenlog_open_viewer() {
+  local file="$1"
+  if [[ -n "$file" ]] ; then
+    echo "zenlog: Opening $file ..."
+    ${ZENLOG_VIEWER:-$PAGER} "$file"
+  fi
+}
+
+zenlog_open_last_log() {
+  zenlog_fail_if_not_in_zenlog || return 1
+
+  zenlog_open_viewer "$(zenlog_last_log "${@}")"
+}
+
+zenlog_cat_last_log() {
+  zenlog_fail_if_not_in_zenlog || return 1
+
+  cat "$(zenlog_last_log "${@}")"
+}
+
+zenlog_cat_last_log_content() {
+  zenlog_fail_if_not_in_zenlog || return 1
+
+  sed -e "1d" -- "$(zenlog_last_log "${@}" -r)"
+}
+
+# Useful: when used with -p PID.
+zenlog_current_log() {
+  zenlog_history -n 0 "${@}"
+}
+
+# Useful: when used with -p PID.
+zenlog_open_current_log() {
+  zenlog_fail_if_not_in_zenlog || return 1
+
+  zenlog_open_viewer "$(zenlog_current_log "${@}")"
+}
+
+zenlog_outer_tty() {
+  "${script_dir}"zenlog outer-tty
+}
+EOF

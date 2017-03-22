@@ -19,8 +19,8 @@ sub debug(@) {
 }
 
 my $PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
-my $PAUSE_MARKER =          "\x1b[0m\x1b[2m\x1b[00000m";
-my $RESUME_MARKER =         "\x1b[0m\x1b[3m\x1b[00000m";
+# my $PAUSE_MARKER =          "\x1b[0m\x1b[2m\x1b[00000m";
+# my $RESUME_MARKER =         "\x1b[0m\x1b[3m\x1b[00000m";
 my $NO_LOG_MARKER =         "\x1b[0m\x1b[4m\x1b[00000m";
 my $COMMAND_START_MARKER =  "\x1b[0m\x1b[5m\x1b[00000m";
 my $COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
@@ -154,8 +154,8 @@ sub extract_comment($) {
 our %sub_commands = ();
 
 $sub_commands{prompt_marker} = sub { print $PROMPT_MARKER; };
-$sub_commands{pause_marker} = sub { print $PAUSE_MARKER; };
-$sub_commands{resume_marker} = sub { print $RESUME_MARKER; };
+# $sub_commands{pause_marker} = sub { print $PAUSE_MARKER; };
+# $sub_commands{resume_marker} = sub { print $RESUME_MARKER; };
 $sub_commands{no_log_marker} = sub { print $NO_LOG_MARKER; };
 # They're not needed by the outer world.
 # $sub_commands{command_start_marker} = sub { print COMMAND_START_MARKER; };
@@ -198,6 +198,11 @@ $sub_commands{sh_helper} = sub {
   # output from the set command won't contain special characters.
 
   my $output = <<'EOF';
+# Equivalent to zenlog in-zenlog.  Inlined for performance.
+function in_zenlog() {
+  [[ "$ZENLOG_TTY" == $(tty) ]]
+}
+
 # Run a command without logging the output.
 function zenlog_nolog() {
   echo -e %s
@@ -365,24 +370,24 @@ sub zen_logging($) {
   make_path($ZENLOG_DIR);
   print "Logging to '$ZENLOG_DIR'...\n";
 
-  my $paused = 0;
+  # my $paused = 0;
 
   OUTER:
   while (defined(my $line = <$reader>)) {
-    if ($paused) {
-      # When pausing, just skip until the next resume marker.
-      if ($line =~ m!\Q$RESUME_MARKER\E!o) {
-        $paused = 0;
-      }
-      next;
-    }
+    # if ($paused) {
+    #   # When pausing, just skip until the next resume marker.
+    #   if ($line =~ m!\Q$RESUME_MARKER\E!o) {
+    #     $paused = 0;
+    #   }
+    #   next;
+    # }
 
-    if ($line =~ m!\Q$PAUSE_MARKER\E!o) {
-      # Pause marker detected.
-      debug("Still paused.\n");
-      $paused = 1;
-      next;
-    }
+    # if ($line =~ m!\Q$PAUSE_MARKER\E!o) {
+    #   # Pause marker detected.
+    #   debug("Still paused.\n");
+    #   $paused = 1;
+    #   next;
+    # }
 
     if ($line =~ m!\Q$NO_LOG_MARKER\E!o) {
       # 184 marker, skip the next command.
@@ -538,6 +543,7 @@ sub main(@) {
     # Find along with PATH, but check the script dir first.
     for my $path ($exe_dir, split(/:/, $ENV{PATH})) {
       my $c = "$path/$command";
+      debug("Checking ", $c, "\n");
       if (-X $c) {
         exec($c, @args) or exit 1;
       }

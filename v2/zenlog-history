@@ -1,8 +1,13 @@
 #!/bin/bash
 
-set -e
+# Zenlog history command.
 
-${0%/*}/zenlog ensure-log-dir
+set -e
+script_dir="${0%/*}/"
+
+"${script_dir}"zenlog fail-unless-in-zenlog
+
+"${script_dir}"zenlog ensure-log-dir
 
 filename="PPPPPPPPPPX"
 rilename="RRRRRRRRRRX"
