@@ -3,4 +3,4 @@
 # Not needed.
 #"$(dirname "$0")"/zenlog fail-unless-in-zenlog || exit 1
 
-du "$@" "$ZENLOG_LOG_DIR/"
+du "$@" "$ZENLOG_DIR/"
