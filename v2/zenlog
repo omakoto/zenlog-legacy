@@ -398,6 +398,11 @@ sub write_log($) {
   $san->print($line) if defined $san;
 }
 
+sub no_log() {
+  write_log("[retracted]\n");
+  close_log();
+}
+
 sub zen_logging($) {
   my ($reader) = @_;
 
@@ -408,26 +413,11 @@ sub zen_logging($) {
 
   OUTER:
   while (defined(my $line = <$reader>)) {
-    # if ($paused) {
-    #   # When pausing, just skip until the next resume marker.
-    #   if ($line =~ m!\Q$RESUME_MARKER\E!o) {
-    #     $paused = 0;
-    #   }
-    #   next;
-    # }
-
-    # if ($line =~ m!\Q$PAUSE_MARKER\E!o) {
-    #   # Pause marker detected.
-    #   debug("Still paused.\n");
-    #   $paused = 1;
-    #   next;
-    # }
 
     if ($line =~ m!\Q$NO_LOG_MARKER\E!o) {
       # 184 marker, skip the next command.
       debug("No-log marker detected.\n");
-      write_log("[retracted]\n");
-      close_log();
+      no_log;
       next;
     }
 
@@ -442,6 +432,14 @@ sub zen_logging($) {
         # Special case; don't log 'exit'.
         next OUTER;
       }
+
+      # Create a log file anyway, and if it's auto-184, then retract the rest.
+      # This is to make sure "zenlog last-history" always returns something
+      # sane.
+      open_log();
+
+      # Write the command in italic-bold.
+      write_log("\$ \e[1;3;4m$command\e[0m\n");
 
       # Split up the command by &&, ||, | and ;.
       # TODO: Actually tokenize the command line to avoid splitting in strings...
@@ -462,14 +460,12 @@ sub zen_logging($) {
         debug("Exe: ", $exe, "\n");
         if ($exe =~ /^$ZENLOG_ALWAYS_184_COMMANDS$/o) {
           debug("Always no-log detected.\n");
+          no_log;
           next OUTER;
         }
         push @exes, $exe;
       }
-      # Always-184 command not detected.
-      # Open the log, and write the command in italic-bold.
-      open_log();
-      write_log("\$ \e[1;3;4m$command\e[0m\n");
+      # Always-184 command not detected; create more links.
       for my $exe (@exes) {
         create_links("cmds", $exe);
       }

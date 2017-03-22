@@ -1,2 +1,1 @@
 - Add help
-- Even auto-184 should create a log, otherwise "last-log" may return wrong results.
