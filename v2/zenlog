@@ -439,7 +439,7 @@ sub zen_logging($) {
       # Always-184 command not detected.
       # Open the log, and write the command in italic-bold.
       open_log();
-      write_log("\$ \e[1;3;4m$command\e\[0m\n");
+      write_log("\$ \e[1;3;4m$command\e[0m\n");
       for my $exe (@exes) {
         create_links("cmds", $exe);
       }
@@ -486,7 +486,8 @@ sub start() {
 
   debug("Pipe opened: read=$reader_fd, write=$writer_fd\n");
 
-  if (!fork()) {
+  my $child_pid;
+  if (($child_pid = fork()) == 0) {
     # Child
     POSIX::close($reader_fd);
 
@@ -496,10 +497,10 @@ sub start() {
         "export ZENLOG_TTY=\$(tty); exec $start_command",
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
-    kill 'INT', getppid;
-    exec(@command);
-
-    die "$0: failed to start script: $!\n";
+    if (!exec(@command)) {
+      kill 'INT', getppid;
+      die "$0: failed to start script: $!\n";
+    }
   }
   # Parent
   POSIX::close($writer_fd);
@@ -509,6 +510,7 @@ sub start() {
 
   zen_logging($reader);
   close $reader;
+  waitpid $child_pid, 0;
   return 1;
 }
 
@@ -538,7 +540,7 @@ sub main(@) {
 
   # See if there's a function for that.
   if (exists $sub_commands{$subcommand_us}) {
-    exit(&{$sub_commands{$subcommand_us}} ? 0 : 1);
+    exit(&{$sub_commands{$subcommand_us}}(@args) ? 0 : 1);
   }
 
   # Otherwise, try to locate the command and execute it.

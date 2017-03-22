@@ -4,7 +4,7 @@
 $ENV{ZENLOG_START_COMMAND} = "$ENV{HOME}/cbin/bin-linux64/lbash -l";
 
 # Log directory.
-$ENV{ZENLOG_DIR} = "/tmp/zenlog/";
+$ENV{ZENLOG_DIR} = "/zenlog/";
 
 # Prefix commands are ignored when command lines are parsed;
 # for example "sudo cat" will considered to be a "cat" command.

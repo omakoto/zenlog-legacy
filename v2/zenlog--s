@@ -1,32 +1,19 @@
 # -*- mode:shell-script -*-
-# Zenlog compatibility shell functions.
+
+# Zenlog compatibility shell functions; provide functions that
+# zenlog(v1) -s provided.
 
 set -e
 script_dir="${0%/*}/"
 
-
+# Base sh-helper.
 "${script_dir}"zenlog sh-helper
 
+# Legacy sh-helper.
 cat <<'EOF'
 
 zenlog_prompt_marker() {
   "${script_dir}"zenlog prompt-marker
-}
-
-zenlog_pause_marker() {
-  : # deprecated
-}
-
-zenlog_resume_marker() {
-  : # deprecated
-}
-
-zenlog_pause() {
-  : # deprecated
-}
-
-zenlog_resume() {
-  : # deprecated
 }
 
 zenlog_echo_command() {
@@ -38,7 +25,7 @@ zenlog_fail_if_not_in_zenlog() {
 }
 
 zenlog_history() {
-  "${script_dir}"zenlog history "@"
+  "${script_dir}"zenlog history "$@"
 }
 
 zenlog_last_log() {
