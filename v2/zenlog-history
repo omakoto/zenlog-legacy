@@ -26,9 +26,9 @@ shift $(($OPTIND - 1))
 
 {
 if [[ -n "$nth" ]] ; then
-  command ls "$ZENLOG_CUR_LOG_DIR/pids/$pid/${filename:0:$(($nth + 1))}"
+  command ls "$ZENLOG_CUR/pids/$pid/${filename:0:$(($nth + 1))}"
 else
-  command ls "$ZENLOG_CUR_LOG_DIR"/pids/$pid/${filename:0:1}* | sort -r
+  command ls "$ZENLOG_CUR"/pids/$pid/${filename:0:1}* | sort -r
 fi
 } 2>/dev/null | while read n ; do
 if [[ -f "$n" ]] ; then
