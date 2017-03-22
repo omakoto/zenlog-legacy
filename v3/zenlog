@@ -1,7 +1,74 @@
 #!/usr/bin/env ruby2.1
 
-require_relative "libs/zencore"
+DEBUG = (ENV["ZENLOG_DEBUG"].to_i >= 0);
 
-include Zencore;
+if (DEBUG)
+  require "yaml";
+end
 
-debug "a", "b", "c\n";
+PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
+NO_LOG_MARKER =         "\x1b[0m\x1b[4m\x1b[00000m";
+COMMAND_START_MARKER =  "\x1b[0m\x1b[5m\x1b[00000m";
+COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
+
+RC_FILE =  "#{ENV['HOME']}/.zenlogrc.rb";
+
+# Show debug message.
+def debug(*message)
+  return unless DEBUG;
+  print "\x1b[0m\x1b[1;31m", message.join(" "), "\x1b[0m";
+end
+
+# Configuration.
+class ZenConfig
+  def self.load()
+    if File.exist?(RC_FILE)
+      debug("Loading ", RC_FILE, " ...\n");
+      require RC_FILE;
+    end
+
+    config = ZenConfig.new(
+        get_env('ZENLOG_START_COMMAND', "#{ENV['SHELL']} -l"),
+        get_env('ZENLOG_DIR', "/tmp/zenlog/"),
+        get_env('ZENLOG_PREFIX_COMMANDS', "(?:builtin|time|sudo)"),
+        get_env('ZENLOG_ALWAYS_184_COMMANDS',
+        "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)"));
+
+    debug("Config:\n");
+    debug(config.to_yaml);
+    return config;
+  end
+
+private
+  def initialize(start_command, log_dir, prefix_commands, always_no_log_commands)
+    @start_command = start_command;
+    @log_dir = log_dir;
+    @prefix_commands = prefix_commands;
+    @always_no_log_commands = always_no_log_commands;
+  end
+
+  def self.get_env(env_name, default)
+    val = ENV['ZENLOG_START_COMMAND']
+    return val ? val : default;
+  end
+end
+
+
+def load_rc()
+  if File.exist?(RC_FILE)
+    debug("Loading ", RC_FILE, " ...\n");
+    require RC_FILE;
+  end
+
+  config = ZenConfig.new(
+      get_env('ZENLOG_START_COMMAND', "#{ENV['SHELL']} -l"),
+      get_env('ZENLOG_DIR', "/tmp/zenlog/"),
+      get_env('ZENLOG_PREFIX_COMMANDS', "(?:builtin|time|sudo)"),
+      get_env('ZENLOG_ALWAYS_184_COMMANDS',
+      "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)"));
+
+  debug("Config=", config.inspect, "\n");
+  return config;
+end
+
+config = ZenConfig.load;

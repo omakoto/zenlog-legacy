@@ -5,7 +5,7 @@ set -e
 usage() {
   cat <<'EOF'
 
-  zenlog purge-log: Purge old log files.
+  Zenlog purge-log: Purge old log files.
 
   Usage:  zenlog purge-log -p DAYS [-P for dry run] [-y to force run]
 
