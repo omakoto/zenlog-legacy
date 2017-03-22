@@ -1,10 +1,22 @@
 #!/usr/bin/env ruby2.1
 
+require 'pathname';
+
 DEBUG = (ENV["ZENLOG_DEBUG"].to_i >= 0);
 
 if (DEBUG)
   require "yaml";
 end
+
+# Show debug message.
+def debug(*message)
+  return unless DEBUG;
+  print "\x1b[0m\x1b[1;31m", message.join(""), "\x1b[0m";
+end
+
+#-----------------------------------------------------------
+# Constants
+#-----------------------------------------------------------
 
 PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
 NO_LOG_MARKER =         "\x1b[0m\x1b[4m\x1b[00000m";
@@ -13,13 +25,9 @@ COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
 
 RC_FILE =  "#{ENV['HOME']}/.zenlogrc.rb";
 
-# Show debug message.
-def debug(*message)
-  return unless DEBUG;
-  print "\x1b[0m\x1b[1;31m", message.join(""), "\x1b[0m";
-end
-
-# Configuration.
+#-----------------------------------------------------------
+# Configuration (loads .zenlogrc.rb)
+#-----------------------------------------------------------
 class ZenConfig
   attr_reader :start_command;
   attr_reader :log_dir;
@@ -103,28 +111,28 @@ end
 # Subcommands.
 #-----------------------------------------------------------
 module ZenCommands
-  def self.prompt_marker()
+  def self.prompt_marker(args)
     print PROMPT_MARKER;
     return true;
   end
 
-  def self.no_log_marker()
+  def self.no_log_marker(args)
     print NO_LOG_MARKER;
     return true;
   end
 
-  def self.no_log()
+  def self.no_log(args)
     print no_log_marker;
     return true;
   end
 
-  def self.outer_tty()
+  def self.outer_tty(args)
     return false unless in_zenlog;
     print ENV['ZENLOG_OUTER_TTY'], "\n";
     return true
   end
 
-  def self.ensure_log_dir()
+  def self.ensure_log_dir(args)
     dir = ENV['ZENLOG_DIR'];
     abort "$ZENLOG_DIR not set." unless dir;
     return true;
@@ -137,10 +145,11 @@ module ZenCommands
     return true;
   end
 
-  def self.sh_helper()
+  def self.sh_helper(args)
     # Note in this script, ESC characters are converted into "\e", so that
     # output from the set command won't contain special characters.
 
+    #------------------------------------
     output = <<'EOF';
 # Equivalent to zenlog in-zenlog.  Inlined for performance.
 function in_zenlog() {
@@ -163,6 +172,7 @@ function zenlog_no_auto_184() {
 alias 186=zenlog_no_auto_184
 
 EOF
+    #------------------------------------
     printf(output,
         shescape_ee(NO_LOG_MARKER),
         );
@@ -175,7 +185,6 @@ end
 # Core.
 #-----------------------------------------------------------
 class Zenlog
-
   def initialize()
     @config = ZenConfig.load;
   end
@@ -238,10 +247,39 @@ end
 # Entry point.
 #-----------------------------------------------------------
 def main(args)
-  zenlog = Zenlog.new;
-  return zenlog.start;
+  # If no arguments are provided, start zenlog.
+  if args.length == 0
+    return Zenlog.new.start;
+  end
+
+  # Otherwise it's a subcommand.
+
+  exe_dir = Pathname.new($0).realpath.dirname.to_s;
+  debug("zenlog path=", exe_dir, "\n");
+
+  subcommand = args.shift;
+  debug "Subcommand: ", subcommand, "\n";
+
+  subcommand_us = subcommand.gsub(/-/, "_");
+  subcommand_hy = subcommand.gsub(/_/, "-");
+
+  # First, see if it's an intrinsic command.
+  if ZenCommands.respond_to?(subcommand_us)
+    exit ZenCommands.send(subcommand_us, args) ? 0 : 1;
+  end
+
+  # It's not an intrinsic command. See if there's
+  # executable.
+  [   "zenlog-#{subcommand}",
+      "zenlog-#{subcommand_hy}",
+      "zenlog_#{subcommand_us}"].each do |command|
+    [exe_dir, ENV['PATH'].split(":")].flatten.each do |dir|
+      fullpath = "#{dir}/#{command}";
+      if File.executable? fullpath
+        exec fullpath, *args;
+      end
+    end
+  end
 end
 
-# main ARGV;
-
-ZenCommands.sh_helper
+main ARGV;

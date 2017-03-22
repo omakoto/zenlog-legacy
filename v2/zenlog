@@ -553,7 +553,7 @@ sub main(@) {
     for my $path ($exe_dir, split(/:/, $ENV{PATH})) {
       my $c = "$path/$command";
       debug("Checking ", $c, "\n");
-      if (-X $c) {
+      if (-x $c) {
         exec($c, @args) or exit 1;
       }
     }
