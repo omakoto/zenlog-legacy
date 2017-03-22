@@ -184,24 +184,43 @@ $sub_commands{ensure_log_dir} = sub {
   };
 };
 
-$sub_commands{logger_pipe} = sub {
-  my $shell_pid = $ENV{ZENLOG_SHELL_PID} // -1;
-  my $shell_fd = $ENV{ZENLOG_SHELL_FD} // -1;
-  my $path = "/proc/$shell_pid/fd/$shell_fd";
-  debug "path=", $path, "\n";
-  if (! (in_zenlog and -e $path)) {
-    print "/dev/null\n";
-    return 1;
+sub get_logger_pipe() {
+  my $pipe = $ENV{ZENLOG_LOGGER_PIPE} // "";
+  if (in_zenlog and -e $pipe) {
+    return $pipe;
+  } else {
+    return "";
   }
-  print $path, "\n";
-  return 0;
+}
+
+$sub_commands{logger_pipe} = sub {
+  my $pipe = get_logger_pipe;
+  if ($pipe) {
+    print $pipe, "\n";
+    return 1;
+  } else {
+    print "/dev/null\n";
+    return 0;
+  }
 };
 
 # Print outer-tty, only when in-zenlog.
 $sub_commands{show_command} = sub {
   # Don't fail, so PS0 would still be safe without zenlog.
   return 0 unless in_zenlog;
-  print($COMMAND_START_MARKER, join(" ", @_), $COMMAND_END_MARKER);
+
+  my $pipe = get_logger_pipe;
+  return 0 unless $pipe;
+
+  debug("pipe=", $pipe, "\n");
+  open(my $out, ">", $pipe) or die "Cannot open $pipe: $!\n";
+
+  print $out ("\n", $COMMAND_START_MARKER,
+      (join(" ", @_) =~ s!\r*\n! !rg),
+      $COMMAND_END_MARKER, "\n");
+
+  close $out;
+  return 1;
 };
 
 $sub_commands{sh_helper} = sub {
@@ -504,7 +523,7 @@ sub start() {
         "-fqc",
         "export ZENLOG_TTY=\$(tty);"
         . "export ZENLOG_SHELL_PID=\$\$;"
-        . "export ZENLOG_SHELL_FD=$writer_fd;"
+        . "export ZENLOG_LOGGER_PIPE=/proc/\$\$/fd/$writer_fd;"
         . "exec $start_command",
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
