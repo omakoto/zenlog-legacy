@@ -561,4 +561,4 @@ sub main(@) {
   die "zenlog: Unknown subcommand '$subcommand'.\n";
 }
 
-main(@ARGV);
+main(@ARGV) unless $ENV{ZENLOG_TEST} or 0;
