@@ -28,30 +28,40 @@ my $COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
 my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
 
 # Start this command instead of the default shell.
-my $ZENLOG_START_COMMAND = ($ENV{ZENLOG_START_COMMAND} or "$ENV{SHELL} -l");
+my $ZENLOG_START_COMMAND;
 
 # Log directory.
-my $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
+my $ZENLOG_DIR;
 
 # Prefix commands are ignored when command lines are parsed;
 # for example "sudo cat" will considered to be a "cat" command.
-my $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
-    or "(?:builtin|time|sudo)");
+my $ZENLOG_PREFIX_COMMANDS;
 
 # Always not log output from these commands.
-my $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
-    or "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
+my $ZENLOG_ALWAYS_184_COMMANDS;
 
 # Load the .zenlogrc.pl file to set up the $ZENLOG* variables.
 sub load_rc() {
-  debug("Loading ", $RC_FILE, " ...\n");
-  require $RC_FILE if -f $RC_FILE;
+  if (-f $RC_FILE) {
+    debug("Loading ", $RC_FILE, " ...\n");
+    do $RC_FILE;
+  }
 
-  $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
-  # Deprecated; it's just for backward compatibility.  Don't use it.
-  $ENV{ZENLOG_CUR_LOG_DIR} = $ENV{ZENLOG_DIR};
+  $ZENLOG_START_COMMAND = ($ENV{ZENLOG_START_COMMAND} or "$ENV{SHELL} -l");
 
-  debug("ZENLOG_DIR=$ZENLOG_DIR\n");
+  # Log directory.
+  $ZENLOG_DIR = ($ENV{ZENLOG_DIR} or "/tmp/zenlog/");
+
+  # Prefix commands are ignored when command lines are parsed;
+  # for example "sudo cat" will considered to be a "cat" command.
+  $ZENLOG_PREFIX_COMMANDS = ($ENV{ZENLOG_PREFIX_COMMANDS}
+      or "(?:builtin|time|sudo)");
+
+  # Always not log output from these commands.
+  $ZENLOG_ALWAYS_184_COMMANDS = ($ENV{ZENLOG_ALWAYS_184_COMMANDS}
+      or "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
+
+  debug("ZENLOG_DIR=", $ZENLOG_DIR, "\n");
 }
 
 # Escape a string for shell.
@@ -380,6 +390,11 @@ sub zen_logging($) {
       $command =~ s!^\s+!!;
       $command =~ s!\s+$!!;
 
+      if ($command =~ /^exit(?:\s+\d+)?$/x) {
+        # Special case; don't log 'exit'.
+        next OUTER;
+      }
+
       # Split up the command by &&, ||, | and ;.
       # TODO: Actually tokenize the command line to avoid splitting in strings...
       my @exes = ();
@@ -435,13 +450,17 @@ sub zen_logging($) {
 #=====================================================================
 # Forker
 #=====================================================================
-sub init_env() {
+sub export_env() {
   $ENV{ZENLOG_PID} = $$;
   $ENV{ZENLOG_OUTER_TTY} = `tty 2>/dev/null` or die "$0: Unable to get tty: $!\n";
+  $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
+
+  # Deprecated; it's just for backward compatibility.  Don't use it.
+  $ENV{ZENLOG_CUR_LOG_DIR} = $ENV{ZENLOG_DIR};
 }
 
 sub start() {
-  init_env;
+  export_env;
 
   my ($reader_fd, $writer_fd) = POSIX::pipe();
   $reader_fd or die "$0: pipe() failed: $!\n";
@@ -470,8 +489,11 @@ sub start() {
 
   zen_logging($reader);
   close $reader;
+  return 1;
 }
 
+#=====================================================================
+# Entry point
 #=====================================================================
 sub main(@) {
   my (@args) = @_;
