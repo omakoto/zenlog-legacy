@@ -21,12 +21,20 @@ end
 
 # Configuration.
 class ZenConfig
+  attr_reader :start_command;
+  attr_reader :log_dir;
+  attr_reader :prefix_commands;
+  attr_reader :always_no_log_commands;
+
+  # Load the RC file if exists, and return the configuration.
   def self.load()
+    # Load the RC file if exists.
     if File.exist?(RC_FILE)
       debug("Loading ", RC_FILE, " ...\n");
       require RC_FILE;
     end
 
+    # Create and return a new config instance.
     config = ZenConfig.new(
         get_env('ZENLOG_START_COMMAND', "#{ENV['SHELL']} -l"),
         get_env('ZENLOG_DIR', "/tmp/zenlog/"),
@@ -39,8 +47,6 @@ class ZenConfig
     return config;
   end
 
-  attr_reader :start_command, :log_dir, :prefix_commands, :always_no_log_commands;
-
 private
   def initialize(start_command, log_dir, prefix_commands, always_no_log_commands)
     @start_command = start_command;
@@ -49,14 +55,18 @@ private
     @always_no_log_commands = always_no_log_commands;
   end
 
+  # Load an environmental variable, with a default value.
   def self.get_env(env_name, default)
     val = ENV[env_name]
     return val ? val : default;
   end
 end
+
+#-----------------------------------------------------------
+# Utility methods.
 #-----------------------------------------------------------
 
-# Shell escape.
+# Escape a string for shell.
 def shescape(str)
   if %r![^a-zA-Z0-9\-\.\_\/]!.match(str)
     return "'" + str.gsub(%r!'!, %q['\\\\'']) + "'";
@@ -64,8 +74,105 @@ def shescape(str)
     return str
   end
 end
+# shescape + convert ESC's to '\e'.
+def shescape_ee(str)
+  return shescape(str).gsub(%r!\x1b!, '\\\\e');
+end
 
+# Return the tty.
+def get_tty()
+  return %x[tty 2>/dev/null].chomp;
+end
 
+# Return true if in zenlog.
+def in_zenlog()
+  return ENV['ZENLOG_TTY'] == get_tty;
+end
+
+# Die if in zenlog.
+def fail_if_in_zenlog()
+  abort "Already in zenlog." if in_zenlog;
+end
+
+# Die if *not* in zenlog.
+def fail_unless_in_zenlog()
+  abort "Not in zenlog." unless in_zenlog;
+end
+
+#-----------------------------------------------------------
+# Subcommands.
+#-----------------------------------------------------------
+module ZenCommands
+  def self.prompt_marker()
+    print PROMPT_MARKER;
+    return true;
+  end
+
+  def self.no_log_marker()
+    print NO_LOG_MARKER;
+    return true;
+  end
+
+  def self.no_log()
+    print no_log_marker;
+    return true;
+  end
+
+  def self.outer_tty()
+    return false unless in_zenlog;
+    print ENV['ZENLOG_OUTER_TTY'], "\n";
+    return true
+  end
+
+  def self.ensure_log_dir()
+    dir = ENV['ZENLOG_DIR'];
+    abort "$ZENLOG_DIR not set." unless dir;
+    return true;
+  end
+
+  def self.show_command(args)
+    # Don't fail, so PS0 would still be safe without zenlog.
+    return false unless in_zenlog;
+    print(COMMAND_START_MARKER, args.join(" "), COMMAND_END_MARKER);
+    return true;
+  end
+
+  def self.sh_helper()
+    # Note in this script, ESC characters are converted into "\e", so that
+    # output from the set command won't contain special characters.
+
+    output = <<'EOF';
+# Equivalent to zenlog in-zenlog.  Inlined for performance.
+function in_zenlog() {
+  [[ "$ZENLOG_TTY" == $(tty) ]]
+}
+
+# Run a command without logging the output.
+function zenlog_nolog() {
+  echo -e %s
+  "${@}"
+}
+alias 184=zenlog_nolog
+
+# Run a command *with* logging the output, ignoring ZENLOG_ALWAYS_184_COMMANDS.
+function zenlog_no_auto_184() {
+  # Note it doesn't have to do anything -- 186 will just fool zenlog.pl
+  # and make it misunderstand the actual command name.
+  "${@}"
+}
+alias 186=zenlog_no_auto_184
+
+EOF
+    printf(output,
+        shescape_ee(NO_LOG_MARKER),
+        );
+    return true;
+  end
+
+end
+
+#-----------------------------------------------------------
+# Core.
 #-----------------------------------------------------------
 class Zenlog
 
@@ -83,32 +190,43 @@ class Zenlog
     child_pid = fork;
     if !child_pid
       debug ">> In child.\n";
-      command = ["script",
-          "-fqc",
-          "export ZENLOG_TTY=\$(tty); exec #{@config.start_command}",
-          "/proc/self/fd/#{writer.fileno}"];
-      debug("Starging: ", command.map{|s| shescape s}.join(" "), "\n");
-      exec *command, close_others: false;
-      # exec failed.
-      STDERR.puts("exec failed.")
-      kill 'INT', Process.ppid;
-      exit 1;
+      start_script writer;
+      # We never get here.
     end
+
     debug ">> In parent.\n";
     writer.close
-
-    reader.each do |line|
-      print ">>>", line;
-    end
-
+    start_logger reader;
     Process.waitpid child_pid
+
     return true
   end
 
+
 private
+  def start_script(writer)
+    command = ["script",
+        "-fqc",
+        "export ZENLOG_TTY=\$(tty); exec #{@config.start_command}",
+        "/proc/self/fd/#{writer.fileno}"];
+    debug("Starting: ", command.map{|s| shescape s}.join(" "), "\n");
+    exec *command, close_others: false;
+
+    # exec failed. TODO Looks like we really won't get here?
+    STDERR.puts("exec failed.")
+    kill 'INT', Process.ppid;
+    exit 1;
+  end
+
+  def start_logger(reader)
+    reader.each do |line|
+      print ">>>", line;
+    end
+  end
+
   def export_env()
     ENV['ZENLOG_PID'] = Process.pid.to_s;
-    ENV['ZENLOG_OUTER_TTY'] = %x(tty 2>/dev/null);
+    ENV['ZENLOG_OUTER_TTY'] = get_tty;
     ENV['ZENLOG_DIR'] = @config.log_dir;
 
     # Deprecated; it's just for backward compatibility.  Don't use it.
@@ -116,7 +234,14 @@ private
   end
 end
 
+#-----------------------------------------------------------
+# Entry point.
+#-----------------------------------------------------------
+def main(args)
+  zenlog = Zenlog.new;
+  return zenlog.start;
+end
 
+# main ARGV;
 
-zenlog = Zenlog.new;
-zenlog.start;
+ZenCommands.sh_helper

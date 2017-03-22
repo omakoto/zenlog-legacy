@@ -166,8 +166,8 @@ $sub_commands{no_log_marker} = sub { print $NO_LOG_MARKER; };
 # $sub_commands{command_end_marker} = sub { print COMMAND_END_MARKER; };
 
 # Aliases.
-$sub_commands{pause} = $sub_commands{pause_marker};
-$sub_commands{resume} = $sub_commands{resume_marker};
+# $sub_commands{pause} = $sub_commands{pause_marker};
+# $sub_commands{resume} = $sub_commands{resume_marker};
 $sub_commands{no_log} = $sub_commands{no_log_marker};
 
 $sub_commands{in_zenlog} = sub { return in_zenlog; };
@@ -192,6 +192,7 @@ $sub_commands{ensure_log_dir} = sub {
 
 # Print outer-tty, only when in-zenlog.
 $sub_commands{show_command} = sub {
+  # Don't fail, so PS0 would still be safe without zenlog.
   return 0 unless in_zenlog;
   print($COMMAND_START_MARKER, join(" ", @_), $COMMAND_END_MARKER);
 };
