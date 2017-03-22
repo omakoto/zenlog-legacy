@@ -245,6 +245,20 @@ $sub_commands{show_command} = sub {
 # Alias.
 $sub_commands{start_command} = $sub_commands{show_command};
 
+$sub_commands{write_to_outer} = sub {
+  *OUT = *STDOUT;
+  if (in_zenlog) {
+    my $outer = $ENV{ZENLOG_OUTER_TTY};
+    open(OUT, ">", $outer) or die "Cannot open '$outer': $!\n";
+  }
+  while(defined(my $line = <STDIN>)) {
+    $line =~ s!\r*\n!\r\n!g;
+    print OUT $line;
+  }
+  close OUT;
+  return 1;
+};
+
 $sub_commands{sh_helper} = sub {
 
   # Note in this script, ESC characters are converted into "\e", so that
@@ -515,7 +529,9 @@ sub zen_logging($) {
 #=====================================================================
 sub export_env() {
   $ENV{ZENLOG_PID} = $$;
-  $ENV{ZENLOG_OUTER_TTY} = `tty 2>/dev/null` or die "$0: Unable to get tty: $!\n";
+  my $tty = `tty 2>/dev/null` or die "$0: Unable to get tty: $!\n";
+  chomp $tty;
+  $ENV{ZENLOG_OUTER_TTY} = $tty;
   $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
 
   # Deprecated; it's just for backward compatibility.  Don't use it.

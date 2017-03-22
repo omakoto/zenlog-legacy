@@ -11,4 +11,4 @@ $ENV{ZENLOG_DIR} = "/zenlog/";
 $ENV{ZENLOG_PREFIX_COMMANDS} = "(?:builtin|time|ee|eet|wb|Test\:|Running\:?|forever|FI|sudo)";
 
 # Always do not log output from these commands.
-$ENV{ZENLOG_ALWAYS_184_COMMANDS} = "(?:1|cd|vi|vim|man|nano|pico|less|watch|emacs|mhist|root|ssh|ssh-ce|ssh-com|htop|nload)";
+$ENV{ZENLOG_ALWAYS_184_COMMANDS} = "(?:cd|vi|vim|man|nano|pico|less|watch|emacs|mhist|root|ssh|ssh-ce|ssh-com|htop|nload)";
