@@ -223,6 +223,9 @@ $sub_commands{show_command} = sub {
   return 1;
 };
 
+# Alias.
+$sub_commands{start_command} = $sub_commands{show_command};
+
 $sub_commands{sh_helper} = sub {
 
   # Note in this script, ESC characters are converted into "\e", so that
