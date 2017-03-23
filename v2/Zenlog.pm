@@ -142,6 +142,7 @@ my $PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
 my $NO_LOG_MARKER =         "\x1b[0m\x1b[4m\x1b[00000m";
 my $COMMAND_START_MARKER =  "\x1b[0m\x1b[5m\x1b[00000m";
 my $COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
+my $FORCE_LOG_MARKER =      "\x1b[0m\x1b[7m\x1b[00000m";
 
 my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
 
@@ -283,13 +284,8 @@ sub extract_comment($) {
 our %sub_commands = ();
 
 $sub_commands{prompt_marker} = sub { print $PROMPT_MARKER; };
-$sub_commands{no_log_marker} = sub { print $NO_LOG_MARKER; };
-# They're not needed by the outer world.
-# $sub_commands{command_start_marker} = sub { print COMMAND_START_MARKER; };
-# $sub_commands{command_end_marker} = sub { print COMMAND_END_MARKER; };
-
-# Aliases.
-$sub_commands{no_log} = $sub_commands{no_log_marker};
+$sub_commands{no_log_marker} = sub { print "\n$NO_LOG_MARKER\n"; };
+$sub_commands{force_log_marker} = sub { print "\n$FORCE_LOG_MARKER\n"; };
 
 $sub_commands{in_zenlog} = sub { return in_zenlog; };
 $sub_commands{fail_if_in_zenlog} = sub { return fail_if_in_zenlog; };
@@ -302,14 +298,16 @@ $sub_commands{outer_tty} = sub {
   return 1;
 };
 
-sub pipe_to_file($) {
-  my ($path) = @_;
+sub pipe_to_file($$) {
+  my ($path, $cr_needed) = @_;
   *OUT = *STDOUT;
   if (in_zenlog) {
     open(OUT, ">", $path) or die "Cannot open '$path': $!\n";
   }
   while(defined(my $line = <STDIN>)) {
-    $line =~ s!\r*\n!\r\n!g;
+    if ($cr_needed) {
+      $line =~ s!\r*\n!\r\n!g;
+    }
     print OUT $line;
   }
   close OUT;
@@ -320,7 +318,7 @@ sub pipe_to_file($) {
 # Example:
 # echo "This will not be logged, but shown on terminal." | zenlog write-to-outer
 $sub_commands{write_to_outer} = sub {
-  return pipe_to_file($ENV{ZENLOG_OUTER_TTY});
+  return pipe_to_file($ENV{ZENLOG_OUTER_TTY}, 1);
 };
 
 $sub_commands{ensure_log_dir} = sub {
@@ -367,7 +365,7 @@ $sub_commands{logger_pipe} = sub {
 # Example:
 # echo "This will be logged, not shown on terminal" | zenlog write-to-logger
 $sub_commands{write_to_logger} = sub {
-  return pipe_to_file(get_logger_pipe() or "/dev/null");
+  return pipe_to_file((get_logger_pipe() or "/dev/null"), 0);
 };
 
 # Print outer-tty, only when in-zenlog.
@@ -393,11 +391,7 @@ $sub_commands{show_command} = sub {
 $sub_commands{start_command} = $sub_commands{show_command};
 
 $sub_commands{sh_helper} = sub {
-
-  # Note in this script, ESC characters are converted into "\e", so that
-  # output from the set command won't contain special characters.
-
-  my $output = <<'EOF';
+  print <<'EOF';
 # Return sucess when in zenlog.
 function in_zenlog() {
   zenlog in-zenlog
@@ -405,15 +399,20 @@ function in_zenlog() {
 
 # Run a command without logging the output.
 function zenlog_nolog() {
-  echo -e %s
+  zenlog no-log-marker | zenlog write-to-logger
   "${@}"
 }
 alias 184=zenlog_nolog
 
+# Run a command with forcing log, regardless of ZENLOG_ALWAYS_184_COMMANDS.
+function zenlog_force_log() {
+  zenlog force-log-marker | zenlog write-to-logger
+  "${@}"
+}
+alias 186=zenlog_force_log
+
+
 EOF
-  printf($output,
-      shescape_ee($NO_LOG_MARKER),
-      );
 };
 
 sub zenlog_history($$;$) {
@@ -438,7 +437,8 @@ sub zenlog_history($$;$) {
 
   my @ret = ();
   for my $file (@files) {
-    push @ret, readlink($file);
+    my $target = readlink($file);
+    push @ret, $target if defined $target;
   }
   return @ret;
 }
@@ -594,7 +594,7 @@ sub zen_logging($) {
   make_path($ZENLOG_DIR);
   print "Logging to '$ZENLOG_DIR'...\n";
 
-  # my $paused = 0;
+  my $force_log_next = 0;
 
   OUTER:
   while (defined(my $line = <$reader>)) {
@@ -603,6 +603,13 @@ sub zen_logging($) {
       # 184 marker, skip the next command.
       debug("No-log marker detected.\n");
       no_log;
+      next;
+    }
+
+    if ($line =~ m!\Q$FORCE_LOG_MARKER\E!o) {
+      # 186 marker, force log the next command.
+      debug("Force-log marker detected.\n");
+      $force_log_next = 1;
       next;
     }
 
@@ -643,13 +650,15 @@ sub zen_logging($) {
         $exe =~ s!^ .*/ !!x; # Remove file path
 
         debug("Exe: ", $exe, "\n");
-        if ($exe =~ /^$ZENLOG_ALWAYS_184_COMMANDS$/o) {
+        if (!$force_log_next and ($exe =~ /^$ZENLOG_ALWAYS_184_COMMANDS$/o)) {
           debug("Always no-log detected.\n");
           no_log;
           next OUTER;
         }
         push @exes, $exe;
       }
+      $force_log_next = 0;
+
       # Always-184 command not detected; create more links.
       for my $exe (@exes) {
         create_links("cmds", $exe);
