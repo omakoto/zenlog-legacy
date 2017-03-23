@@ -202,14 +202,20 @@ sub shescape_ee($) {
   return (shescape($arg) =~ s!\x1b!\\e!rg); #!
 }
 
-# Get the tty associated with the current process.
-# There's no easy way to do this, so it lets the ps command
-# figure it out.
 sub get_process_tty() {
-  my $tty = qx(ps -o tty -p $$ --no-header 2>/dev/null);
+  my $tty =
+      POSIX::ttyname(0) ||
+      POSIX::ttyname(1) ||
+      POSIX::ttyname(2);
+  return $tty if $tty;
+
+  # None of 0, 1 nor 2 is associated with a tty, so
+  # get the tty associated with the current process.
+  # There's no easy way to do this, so it lets the ps command
+  # figure it out.
+  $tty = qx(ps -o tty -p $$ --no-header 2>/dev/null);
   chomp $tty;
   $tty = "/dev/$tty" if $tty;
-  debug("tty=", $tty, "\n");
   return $tty;
 }
 
