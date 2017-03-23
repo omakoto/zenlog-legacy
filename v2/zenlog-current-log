@@ -1,11 +1,33 @@
-#!/bin/bash
+#!/usr/bin/perl -w
 
-# Print current log file name.
-# Useful when used with -p PID.
-#
-# Supported options: -p PID, -r
+use strict;
+use Getopt::Std;
+use Cwd qw();
+use File::Basename qw(dirname);
+use lib (dirname(Cwd::abs_path($0)));
+use Zenlog;
 
-set -e
-zenlog fail-unless-in-zenlog
+sub usage() {
+  print <<'EOF';
 
-zenlog history -n 0 "${@}"
+  Zenlog last-log: Show the last log filename.
+
+  Usage: zenlog last-log [-p PID] [-r]
+
+    -p: Specify another ZENLOG_PID.
+
+    -r: Show RAW log files instead of SAN files.
+
+EOF
+  exit 1;
+}
+
+# Parse options.
+my %opts = ();
+getopts("rh", \%opts) or usage;
+$opts{h} and usage;
+
+# Print output.
+for my $file (Zenlog::zenlog_history(0, $opts{r} ? 1 : 0)) {
+  print($file, "\n");
+}
