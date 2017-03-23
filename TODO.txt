@@ -1,2 +1,0 @@
-- Clean up /zenlog/pids/$$ before start
-- Add help
