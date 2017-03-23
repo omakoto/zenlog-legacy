@@ -562,8 +562,10 @@ sub start() {
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
     if (!exec(@command)) {
-      kill 'INT', getppid;
-      die "$0: failed to start script: $!\n";
+      # kill 'INT', getppid;
+      warn "$0: failed to start script: $!\n";
+      warn "Starting /bin/sh instead.\n";
+      exec("/bin/sh -l");
     }
   }
   # Parent
