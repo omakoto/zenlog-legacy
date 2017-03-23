@@ -183,6 +183,27 @@ $sub_commands{outer_tty} = sub {
   return 1;
 };
 
+sub pipe_to_file($) {
+  my ($path) = @_;
+  *OUT = *STDOUT;
+  if (in_zenlog) {
+    open(OUT, ">", $path) or die "Cannot open '$path': $!\n";
+  }
+  while(defined(my $line = <STDIN>)) {
+    $line =~ s!\r*\n!\r\n!g;
+    print OUT $line;
+  }
+  close OUT;
+  return 1;
+}
+
+# Pipe to the outer TTY.
+# Example:
+# echo "This will not be logged, but shown on terminal." | zenlog write-to-outer
+$sub_commands{write_to_outer} = sub {
+  return pipe_to_file($ENV{ZENLOG_OUTER_TTY});
+};
+
 $sub_commands{ensure_log_dir} = sub {
   if ($ENV{ZENLOG_DIR}) {
     return 1;
@@ -192,6 +213,7 @@ $sub_commands{ensure_log_dir} = sub {
   };
 };
 
+# Show the TTY associated with the current process.
 $sub_commands{process_tty} = sub {
   my $tty = get_process_tty;
   if ($tty) {
@@ -201,7 +223,6 @@ $sub_commands{process_tty} = sub {
     return 0;
   }
 };
-
 
 sub get_logger_pipe() {
   my $pipe = $ENV{ZENLOG_LOGGER_PIPE} // "";
@@ -221,6 +242,13 @@ $sub_commands{logger_pipe} = sub {
     print "/dev/null\n";
     return 0;
   }
+};
+
+# Pipe directly to the logger.
+# Example:
+# echo "This will be logged, not shown on terminal" | zenlog write-to-logger
+$sub_commands{write_to_logger} = sub {
+  return pipe_to_file(get_logger_pipe() or "/dev/null");
 };
 
 # Print outer-tty, only when in-zenlog.
@@ -244,20 +272,6 @@ $sub_commands{show_command} = sub {
 
 # Alias.
 $sub_commands{start_command} = $sub_commands{show_command};
-
-$sub_commands{write_to_outer} = sub {
-  *OUT = *STDOUT;
-  if (in_zenlog) {
-    my $outer = $ENV{ZENLOG_OUTER_TTY};
-    open(OUT, ">", $outer) or die "Cannot open '$outer': $!\n";
-  }
-  while(defined(my $line = <STDIN>)) {
-    $line =~ s!\r*\n!\r\n!g;
-    print OUT $line;
-  }
-  close OUT;
-  return 1;
-};
 
 $sub_commands{sh_helper} = sub {
 
