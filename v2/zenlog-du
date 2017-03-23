@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Run du over ZENLOG_DIR.
+
 set -e
 zenlog ensure-log-dir
 

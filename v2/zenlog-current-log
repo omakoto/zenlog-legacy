@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Print current log file name.
+# Useful when used with -p PID.
+#
+# Supported options: -p PID, -r
+
 set -e
 zenlog fail-unless-in-zenlog
 
