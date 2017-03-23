@@ -307,6 +307,33 @@ EOF
       );
 };
 
+sub zenlog_history($$;$) {
+  my ($num, $raw, $pid) =  @_;
+  Zenlog::fail_unless_in_zenlog;
+
+  $pid //= $ENV{ZENLOG_PID}; #/
+
+  my $log_dir = "$ENV{ZENLOG_DIR}/pids/$ENV{ZENLOG_PID}/";
+  -d $log_dir or die "Log directory '$log_dir' not found.\n";
+
+  my $name = $raw ? "R" : "P";
+
+  # Collect the files.
+  my @files = ();
+
+  if ($num >= 0) {
+    @files = ($log_dir . $name x ($num + 1));
+  } else {
+    @files = reverse(glob("${log_dir}${name}*"));
+  }
+
+  my @ret = ();
+  for my $file (@files) {
+    push @ret, readlink($file);
+  }
+  return @ret;
+}
+
 #=====================================================================
 # Logger
 #=====================================================================

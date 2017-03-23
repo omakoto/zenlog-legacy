@@ -3,6 +3,7 @@
 # Show the free space of the log disk in bytes.
 
 set -e
+zenlog ensure-log-dir
 
 size_k=$(df --output=avail "$ZENLOG_DIR/" | sed -e 1d)
 

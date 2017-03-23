@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Not needed.
-#"$(dirname "$0")"/zenlog fail-unless-in-zenlog || exit 1
+set -e
+zenlog ensure-log-dir
 
 du "$@" "$ZENLOG_DIR/"

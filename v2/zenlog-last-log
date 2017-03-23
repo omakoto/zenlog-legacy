@@ -10,11 +10,9 @@ use Zenlog;
 sub usage() {
   print <<'EOF';
 
-  Zenlog history: Show most recent log files on this console.
+  Zenlog last-log: Show the last log filename.
 
-  Usage: zenlog history [-n NUM FILES] [-p PID] [-r]
-
-    -n: Number of log files to show.
+  Usage: zenlog last-log [-p PID] [-r]
 
     -p: Specify another ZENLOG_PID.
 
@@ -25,14 +23,11 @@ EOF
 }
 
 # Parse options.
-
 my %opts = ();
-
-getopts("n:p:rh", \%opts) or usage;
+getopts("rh", \%opts) or usage;
 $opts{h} and usage;
 
-my @files = Zenlog::zenlog_history($opts{n} // -1, $opts{r} ? 1 : 0, $opts{p});
-
-for my $file (@files) {
+# Print output.
+for my $file (Zenlog::zenlog_history(1, $opts{r} ? 1 : 0)) {
   print($file, "\n");
 }

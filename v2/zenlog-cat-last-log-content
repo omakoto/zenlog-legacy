@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -e
+zenlog fail-unless-in-zenlog
+
+sed -e 1d -- "$(zenlog last-log "${@}")"

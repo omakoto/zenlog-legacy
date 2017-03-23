@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -e
+zenlog fail-unless-in-zenlog
+
+zenlog open-viewer "$(zenlog history -n 0 "${@}")"

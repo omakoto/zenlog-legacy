@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -e
+
+file="$1"
+echo "zenlog: Opening '$file' ..."
+${ZENLOG_VIEWER:-$PAGER} "$file"

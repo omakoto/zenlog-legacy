@@ -3,7 +3,8 @@
 # Zenlog history command.
 
 set -e
-script_dir="${0%/*}/"
+zenlog fail-unless-in-zenlog
+zenlog ensure-log-dir
 
 usage() {
   cat <<'EOF'
@@ -22,9 +23,6 @@ EOF
   exit 1
 }
 
-"${script_dir}"zenlog fail-unless-in-zenlog
-
-"${script_dir}"zenlog ensure-log-dir
 
 filename="PPPPPPPPPPX"
 rilename="RRRRRRRRRRX"
