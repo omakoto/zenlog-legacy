@@ -7,6 +7,7 @@ use POSIX;
 use Time::HiRes qw(time);
 use File::Path qw(make_path);
 use File::Basename;
+use File::Path;
 
 use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
 
@@ -556,6 +557,8 @@ sub export_env() {
 sub start() {
   load_rc;
   export_env;
+
+  File::Path::remove_tree("$ZENLOG_DIR/pids/$$/", {keep_root => 1});
 
   my ($reader_fd, $writer_fd) = POSIX::pipe();
   $reader_fd or die "$0: pipe() failed: $!\n";

@@ -1,12 +1,20 @@
-#!/bin/bash
+#!/usr/bin/perl -w
 
-# Zenlog history command.
+use strict;
+use Getopt::Std;
+use Cwd qw();
+use File::Basename qw(dirname);
+use lib (dirname(Cwd::abs_path($0)));
+use Zenlog;
 
-set -e
-script_dir="${0%/*}/"
+Zenlog::fail_unless_in_zenlog;
 
-usage() {
-  cat <<'EOF'
+my $log_dir = "$ENV{ZENLOG_DIR}/pids/$ENV{ZENLOG_PID}/";
+
+-d $log_dir or die "Log directory '$log_dir' not found.\n";
+
+sub usage() {
+  print <<'EOF';
 
   Zenlog history: Show most recent log files on this console.
 
@@ -19,37 +27,31 @@ usage() {
     -r: Show RAW log files instead of SAN files.
 
 EOF
-  exit 1
+  exit 1;
 }
 
-"${script_dir}"zenlog fail-unless-in-zenlog
+# Parse options.
 
-"${script_dir}"zenlog ensure-log-dir
+my %opts = ();
 
-filename="PPPPPPPPPPX"
-rilename="RRRRRRRRRRX"
-nth=""
-pid=$ZENLOG_PID
+getopts("n:p:rh", \%opts) or usage;
+$opts{h} and usage;
 
-while getopts "rp:n:h" opt; do
-case "$opt" in
-  r) filename="$rilename" ;;
-  p) pid="$OPTARG" ;;
-  n) nth="$OPTARG" ;;
-  *) usage;;
-esac
-done
-shift $(($OPTIND - 1))
+my $num = $opts{n} // -1; #/
+my $pid = $opts{p} // $ENV{ZENLOG_PID}; #/
+my $name = $opts{r} ? "R" : "P";
 
-{
-if [[ -n "$nth" ]] ; then
-  command ls "$ZENLOG_DIR/pids/$pid/${filename:0:$(($nth + 1))}"
-else
-  command ls "$ZENLOG_DIR"/pids/$pid/${filename:0:1}* | sort -r
-fi
-} 2>/dev/null | while read n ; do
-if [[ -f "$n" ]] ; then
-  # Resolve symlink, but only one level.
-  command ls -l "$n" | sed -e 's/.* -> //'
-fi
-done
+# Collect the files.
+
+my @files = ();
+
+if ($num >= 0) {
+  @files = ($log_dir . $name x ($num + 1));
+} else {
+  @files = reverse(glob("${log_dir}${name}*"));
+}
+
+# Print the files, resolving symlinks, but only one level.
+for my $file (@files) {
+  print(readlink($file), "\n");
+}
