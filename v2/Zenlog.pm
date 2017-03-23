@@ -203,6 +203,8 @@ sub shescape_ee($) {
 }
 
 # Get the tty associated with the current process.
+# There's no easy way to do this, so it lets the ps command
+# figure it out.
 sub get_process_tty() {
   my $tty = qx(ps -o tty -p $$ --no-header 2>/dev/null);
   chomp $tty;
@@ -298,11 +300,15 @@ $sub_commands{outer_tty} = sub {
   return 1;
 };
 
+# Read from STDIN, and write to $path, if in-zenlog.
+# Otherwise just write to STDOUT.
 sub pipe_to_file($$) {
   my ($path, $cr_needed) = @_;
   *OUT = *STDOUT;
   if (in_zenlog) {
     open(OUT, ">", $path) or die "Cannot open '$path': $!\n";
+  } else {
+    $cr_needed = 0;
   }
   while(defined(my $line = <STDIN>)) {
     if ($cr_needed) {
@@ -321,6 +327,7 @@ $sub_commands{write_to_outer} = sub {
   return pipe_to_file($ENV{ZENLOG_OUTER_TTY}, 1);
 };
 
+# Make sure $ZENLOG_DIR is set.  (It still may not exist.)
 $sub_commands{ensure_log_dir} = sub {
   if ($ENV{ZENLOG_DIR}) {
     return 1;
