@@ -12,6 +12,123 @@ use File::Path;
 use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
 
 #=====================================================================
+# Usage for the zenlog command.
+#=====================================================================
+
+sub usage() {
+  print <<'EOF';
+
+Zenlog
+
+  Start a new shell where all input/output from each command will be
+  saved in a separate log file.
+
+  ** MAKE SURE **
+  ** - Update PS1 and include $(zenlog prompt-marker) in it **
+  ** - Execute "zenlog start-command COMMAND LINE" in PS0 (aka preexec) **
+
+Usage:
+  - zenlog
+    Start a new shell.
+
+  - zenlog prompt-marker
+    Print the marker that must be set to PS1 to tell zenlog the end of
+    each command.
+
+  - zenlog prompt-marker
+    Print the marker that must be set to PS1 to tell zenlog the end of
+    each command.
+
+  - zenlog write-to-outer
+    Write the content from the stdin on console, but not to the log.
+
+    Example:
+      echo "This will not be logged, but shown on terminal." \
+        | zenlog write-to-outer
+
+  - zenlog write-to-logger
+    Write the content from the stdin to the log, but not on terminal.
+
+    Example:
+      echo "This will be logged, not shown on terminal" \
+        | zenlog write-to-logger
+
+
+  - zenlog purge-log [-y] -p DAYS
+    Purge logs older than N days and exit.
+
+    Options:
+      -y:   Skip confirmation.
+
+  - zenlog free-space
+    Show the free space size of the log disk in bytes.
+
+  - zenlog du [du options]
+    Execute du on the log directory.
+
+    Example:
+      zenlog_du -h
+
+  - zenlog in-zenlog
+    Return sucess iif in zenlog.
+
+  - zenlog sh-helper
+    Use it like ". <(zenlog sh-helper)" to install support
+    functions to the current shell.
+
+    Commands are:
+      - in_zenlog
+          Equaivalent to "zenlog in-zenlog".
+
+      - 184 COMMAND [args...]
+          Run the passed command without logging the output.
+          Example:
+            184 emacs
+
+  - zenlog -s [deprecated]
+    Use it like ". <(zenlog -s)" to install v1-compatible
+    support functions to the current shell.
+
+  Other subcommands:
+  - zenlog history [-n NTH] [-r for raw file]
+    Print the last log filenames on the current terminal.
+
+    Run "zenlog history -h" for more options.
+
+  - zenlog last-log [-r for raw file]
+    Print the last log filename on the current terminal.
+
+  Files:
+    $HOME/.zenlogrc.pl
+          Initialization file.
+          (See dot_zenlogrc.pl as an example.)
+
+  Environmental variables:
+    ZENLOG_DIR
+          Specify log file directory.
+
+    ZENLOG_START_COMMAND
+          If set, start this command instead of "$SHELL -l".
+
+    ZENLOG_ALWAYS_184
+          Regex to match command names that shouldn't be logged.
+          (^ and $ are assumed.)
+          Needs to be used with zenlog_echo_command.
+          Example: export ZENLOG_ALWAYS_184="(vi|emacs|man|zenlog.*)"
+
+    ZENLOG_COMMAND_PREFIX
+          Regex to match "prefix" commands, such as "time" and
+          "builtin". (^ and $ are assumed.)
+
+          This allows, e.g., a command "time ls -l" to be handled as
+          "ls -l".
+
+          Example: export ZENLOG_COMMAND_PREFIX="(builtin|time|sudo)"
+
+EOF
+}
+
+#=====================================================================
 # Config and core functions.
 #=====================================================================
 
@@ -292,14 +409,6 @@ function zenlog_nolog() {
   "${@}"
 }
 alias 184=zenlog_nolog
-
-# Run a command *with* logging the output, ignoring ZENLOG_ALWAYS_184_COMMANDS.
-function zenlog_no_auto_184() {
-  # Note it doesn't have to do anything -- 186 will just fool zenlog.pl
-  # and make it misunderstand the actual command name.
-  "${@}"
-}
-alias 186=zenlog_no_auto_184
 
 EOF
   printf($output,
@@ -638,6 +747,12 @@ sub main(@) {
   if (@args == 0) {
     fail_if_in_zenlog;
     exit(start() == 0 ? 1 : 0);
+  }
+
+  # if the first argument is -h or --help, show the usage.
+  if ($args[0] =~ m!^-h|--help$!) {
+    usage;
+    exit 0;
   }
 
   # Otherwise, start a subcommand.
