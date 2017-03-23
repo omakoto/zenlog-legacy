@@ -2,18 +2,16 @@
 
 use strict;
 use Test::More;
-
-BEGIN {
-  $ENV{ZENLOG_TEST} = 1;
-  require "../zenlog";
-}
-
+use Cwd qw();
+use File::Basename qw(dirname);
+use lib (dirname(Cwd::abs_path($0)) . "/../");
+use Zenlog;
 
 my $tests = 0;
 
 sub check_extract_tag($$) {
   my ($expected, $input) = @_;
-  my $actual = extract_comment($input);
+  my $actual = Zenlog::extract_comment($input);
   is($actual, $expected, "extract_comment: '$input'");
 
   $tests++;

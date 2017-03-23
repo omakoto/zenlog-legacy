@@ -6,4 +6,5 @@ use File::Basename qw(dirname);
 use lib (dirname(Cwd::abs_path($0)));
 use Zenlog;
 
-Zenlog::main(@ARGV);
+Zenlog::fail_unless_in_zenlog;
+
