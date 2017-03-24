@@ -438,10 +438,10 @@ sub start_log(@) {
   }
 
   # If the line starts with "184", then don't log.
-  my $omit = ($command =~ m!^ [\s\(]+ 184 \s+ !x) ? 1 : 0;
+  my $omit = ($command =~ m!^ [\s\(]* 184 \s+ !x) ? 1 : 0;
 
   # But 186 will trump.
-  my $no_omit = ($command =~ m!^ [\s\(]+ 186 \s+ !x) ? 1 : 0;
+  my $no_omit = ($command =~ m!^ [\s\(]* 186 \s+ !x) ? 1 : 0;
   $omit = 0 if $no_omit;
 
   # Split up the command by &&, ||, | and ;.
@@ -472,9 +472,10 @@ sub start_log(@) {
   # Note even if omitting, we still create the log files.
   # This is to make sure "zenlog last-history" always returns something sane.
   my ($san_name, $raw_name) = create_log($command, $omit);
-  write_log_names($san_name, $raw_name);
 
   return 1 if $omit;
+
+  write_log_names($san_name, $raw_name);
 
   # 184 command not detected; create more links.
   for my $exe (@exes) {
