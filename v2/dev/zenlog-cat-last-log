@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Print last log file.
+#
+# Supported options: -p PID, -r
+
+set -e
+zenlog fail-unless-in-zenlog
+
+cat "$(zenlog last-log "${@}")"

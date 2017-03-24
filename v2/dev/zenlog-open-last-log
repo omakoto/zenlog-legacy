@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Open last log file with ZENLOG_VIEWER.
+#
+# Supported options: -p PID, -r
+
+set -e
+zenlog fail-unless-in-zenlog
+
+zenlog open-viewer "$(zenlog last-log "${@}")"

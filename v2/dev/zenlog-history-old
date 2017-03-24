@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Zenlog history command.
+
+set -e
+zenlog fail-unless-in-zenlog
+zenlog ensure-log-dir
+
+usage() {
+  cat <<'EOF'
+
+  Zenlog history: Show most recent log files on this console.
+
+  Usage: zenlog history [-n NUM FILES] [-p PID] [-r]
+
+    -n: Number of log files to show.
+
+    -p: Specify another ZENLOG_PID.
+
+    -r: Show RAW log files instead of SAN files.
+
+EOF
+  exit 1
+}
+
+
+filename="PPPPPPPPPPX"
+rilename="RRRRRRRRRRX"
+nth=""
+pid=$ZENLOG_PID
+
+while getopts "rp:n:h" opt; do
+case "$opt" in
+  r) filename="$rilename" ;;
+  p) pid="$OPTARG" ;;
+  n) nth="$OPTARG" ;;
+  *) usage;;
+esac
+done
+shift $(($OPTIND - 1))
+
+{
+if [[ -n "$nth" ]] ; then
+  command ls "$ZENLOG_DIR/pids/$pid/${filename:0:$(($nth + 1))}"
+else
+  command ls "$ZENLOG_DIR"/pids/$pid/${filename:0:1}* | sort -r
+fi
+} 2>/dev/null | while read n ; do
+if [[ -f "$n" ]] ; then
+  # Resolve symlink, but only one level.
+  command ls -l "$n" | sed -e 's/.* -> //'
+fi
+done

@@ -1,0 +1,33 @@
+#!/usr/bin/perl -w
+
+use strict;
+use Getopt::Std;
+use Cwd qw();
+use File::Basename qw(dirname);
+use lib (dirname(Cwd::abs_path($0)));
+use Zenlog;
+
+sub usage() {
+  print <<'EOF';
+
+  Zenlog last-log: Show the last log filename.
+
+  Usage: zenlog last-log [-p PID] [-r]
+
+    -p: Specify another ZENLOG_PID.
+
+    -r: Show RAW log files instead of SAN files.
+
+EOF
+  exit 1;
+}
+
+# Parse options.
+my %opts = ();
+getopts("rh", \%opts) or usage;
+$opts{h} and usage;
+
+# Print output.
+for my $file (Zenlog::zenlog_history(1, $opts{r} ? 1 : 0)) {
+  print($file, "\n");
+}

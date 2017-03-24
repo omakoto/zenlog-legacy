@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Print last log file, without the command line.
+#
+# Supported options: -p PID, -r
+
+set -e
+zenlog fail-unless-in-zenlog
+
+sed -e 1d -- "$(zenlog last-log "${@}")"

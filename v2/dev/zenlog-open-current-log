@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# Open current log file with ZENLOG_VIEWER.
+# Useful used with -p.
+#
+# Supported options: -p PID, -r
+
+set -e
+zenlog fail-unless-in-zenlog
+
+zenlog open-viewer "$(zenlog history -n 0 "${@}")"
