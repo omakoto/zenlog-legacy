@@ -139,10 +139,7 @@ sub debug(@) {
 }
 
 my $PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
-my $NO_LOG_MARKER =         "\x1b[0m\x1b[4m\x1b[00000m";
-my $COMMAND_START_MARKER =  "\x1b[0m\x1b[5m\x1b[00000m";
-my $COMMAND_END_MARKER =    "\x1b[0m\x1b[6m\x1b[00000m";
-my $FORCE_LOG_MARKER =      "\x1b[0m\x1b[7m\x1b[00000m";
+my $LOG_START_MARKER =      "\x1b[0m\x1b[4m\x1b[00000m";
 
 my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
 
@@ -150,14 +147,26 @@ my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
 my $ZENLOG_START_COMMAND;
 
 # Log directory.
-my $ZENLOG_DIR;
+my $ZENLOG_DIR = $ENV{ZENLOG_DIR};
+
+my $ZENLOG_PID = $ENV{ZENLOG_PID};
 
 # Prefix commands are ignored when command lines are parsed;
 # for example "sudo cat" will considered to be a "cat" command.
-my $ZENLOG_PREFIX_COMMANDS;
+my $ZENLOG_PREFIX_COMMANDS = $ENV{ZENLOG_PREFIX_COMMANDS};
 
 # Always not log output from these commands.
-my $ZENLOG_ALWAYS_184_COMMANDS;
+my $ZENLOG_ALWAYS_184_COMMANDS = $ENV{ZENLOG_ALWAYS_184_COMMANDS};
+
+sub export_vars() {
+  $ENV{ZENLOG_PID} = $$;
+  $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
+  $ENV{ZENLOG_PREFIX_COMMANDS} = $ZENLOG_PREFIX_COMMANDS;
+  $ENV{ZENLOG_ALWAYS_184_COMMANDS} = $ZENLOG_ALWAYS_184_COMMANDS;
+
+  # Deprecated; it's just for backward compatibility.  Don't use it.
+  $ENV{ZENLOG_CUR_LOG_DIR} = $ZENLOG_DIR;
+}
 
 # Load the .zenlogrc.pl file to set up the $ZENLOG* variables.
 sub load_rc() {
@@ -236,6 +245,15 @@ sub fail_unless_in_zenlog() {
   in_zenlog or die "Not in zenlog.\n";
 }
 
+sub get_logger_pipe() {
+  my $pipe = $ENV{ZENLOG_LOGGER_PIPE} // "";
+  if (in_zenlog and -e $pipe) {
+    return $pipe;
+  } else {
+    return "";
+  }
+}
+
 #=====================================================================
 # Shell command parsing helpers.
 #=====================================================================
@@ -286,14 +304,199 @@ sub extract_comment($) {
 }
 
 #=====================================================================
+# Log file creation.
+#=====================================================================
+
+# Log sequence number.
+my $log_seq_number = 0;
+
+sub sanitize($) {
+  my ($line) = @_;
+  # Sanitize
+  $line =~ s! (
+        \a                         # Bell
+        | \e \x5B .*? [\x40-\x7E]  # CSI
+        | \e \x5D .*? \x07         # Set terminal title
+        | \e \( .                  # 3 byte sequence
+        | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
+        )
+        !!gx;
+  # Also clean up CR/LFs.
+  $line =~ s! \s* \x0d* \x0a !\x0a!gx;       # Remove end-of-line CRs.
+  $line =~ s! \s* \x0d !\x0a!gx;             # Replace orphan CRs with LFs.
+
+  # Also replace ^H's.
+  $line =~ s! \x08 !^H!gx;
+  return $line;
+}
+
+# Create the P and R links to the current log files.
+sub create_prev_links($$$) {
+  my ($link_dir, $san_name, $raw_name) = @_;
+
+  for my $mark ( "R", "P" ) {
+    my $num = 10;
+    unlink("${link_dir}/" . ($mark x $num));
+    while ($num >= 2) {
+      rename("${link_dir}/" . ($mark x ($num-1)), "${link_dir}/" . ($mark x $num));
+      $num--;
+    }
+  }
+
+  symlink($raw_name, "${link_dir}/R");
+  symlink($san_name, "${link_dir}/P");
+}
+
+# Create symlinks.
+sub create_links($$$$) {
+  my ($parent_dir_name, $dir_name, $san_name, $raw_name) = @_;
+
+  # Normalzie the directory name.
+  $dir_name =~ s! \s+ $!!xg;
+  $dir_name =~ s! [ / \s ]+ !_!xg;
+
+  # Avoid typical errors...; don't create if the directory name would
+  # be "." or "..";
+  return if $dir_name =~ m!^ ( \. | \.\. ) $!x;
+
+  my $t = time;
+
+  my $full_dir_name = "$ZENLOG_DIR/$parent_dir_name/$dir_name/";
+
+  my $raw_dir = sprintf('%s/RAW/%s',
+      $full_dir_name,
+      strftime('%Y/%m/%d', localtime($t)));
+  $raw_dir =~ s!/+!/!g;
+  my $san_dir = $raw_dir =~ s!/RAW/!/SAN/!r; #!
+
+  make_path($raw_dir);
+  make_path($san_dir);
+
+  my $r = ($raw_name =~ s!^.*/!!r); #!
+  my $s = ($san_name =~ s!^.*/!!r); #!
+
+  symlink($raw_name, "$raw_dir/$r");
+  symlink($san_name, "$san_dir/$s");
+
+  create_prev_links($full_dir_name, $san_name, $raw_name);
+}
+
+sub create_log($$) {
+  my ($command, $omitted) = @_;
+  my $t = time;
+
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d-%04d.log',
+      $ZENLOG_DIR,
+      strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
+      ($t - int($t)) * 1000, $ZENLOG_PID, $log_seq_number++);
+  $raw_name =~ s!/+!/!g;
+  my $san_name = $raw_name =~ s!/RAW/!/SAN/!r; #!
+
+  make_path(dirname($raw_name));
+  make_path(dirname($san_name));
+
+  debug("Opening ", $raw_name, " and ", $san_name, "\n");
+
+  open(my $raw, ">", $raw_name);
+  open(my $san, ">", $san_name);
+  my $line = "\$ \e[1;3;4m$command\e[0m\n";
+  $line .= "[omitted]\n" if $omitted;
+  print $raw $line;
+  print $san sanitize($line);
+  close $raw;
+  close $san;
+
+  # Create and update the P/R links, and also create
+  # the pids/$$/ links.
+  create_prev_links($ZENLOG_DIR, $san_name, $raw_name);
+  create_links("pids", $ZENLOG_PID, $san_name, $raw_name);
+
+  return ($san_name, $raw_name);
+}
+
+sub write_log_names($$) {
+  my ($san_name, $raw_name) = @_;
+  my $pipe = get_logger_pipe;
+  return unless $pipe;
+
+  debug("pipe=", $pipe, "\n");
+  open(my $out, ">", $pipe) or die "Cannot open $pipe: $!\n";
+  print $out ($LOG_START_MARKER, "\t", $san_name, "\t", $raw_name, "\n");
+  close $out;
+}
+
+sub start_log(@) {
+  my (@command_line) = @_;
+
+  return 0 if !in_zenlog;
+
+  my $command = (join(" ", @command_line) =~ s!\r*\n! !rg);
+  debug("Start log: command=", $command, "\n");
+  $command =~ s!^\s+!!;
+  $command =~ s!\s+$!!;
+
+  if ($command =~ /^exit(?:\s+\d+)?$/x) {
+    # Special case; don't log 'exit'.
+    return 1;
+  }
+
+  # If the line starts with "184", then don't log.
+  my $omit = ($command =~ m!^ [\s\(]+ 184 \s+ !x) ? 1 : 0;
+
+  # But 186 will trump.
+  my $no_omit = ($command =~ m!^ [\s\(]+ 186 \s+ !x) ? 1 : 0;
+  $omit = 0 if $no_omit;
+
+  # Split up the command by &&, ||, | and ;.
+  # TODO: Actually tokenize the command line to avoid splitting in strings...
+  my @exes = ();
+  for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
+    $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
+
+    # Remove prefix commands, such as "builtin" and "time".
+    while ($single_command =~ s!^${ZENLOG_PREFIX_COMMANDS}\s+!!o) { #!
+    }
+
+    # Get the first token, which is the command.
+    my $exe = (split(/\s+/, $single_command, 2))[0];
+
+    $exe =~ s!^ \\ !!x; # Remove first '\'.
+    $exe =~ s!^ .*/ !!x; # Remove file path
+
+    debug("Exe: ", $exe, "\n");
+    if (!$no_omit and ($exe =~ /^$ZENLOG_ALWAYS_184_COMMANDS$/o)) {
+      debug("Always no-log detected.\n");
+      $omit = 1;
+      last;
+    }
+    push @exes, $exe;
+  }
+
+  # Note even if omitting, we still create the log files.
+  # This is to make sure "zenlog last-history" always returns something sane.
+  my ($san_name, $raw_name) = create_log($command, $omit);
+  write_log_names($san_name, $raw_name);
+
+  return 1 if $omit;
+
+  # 184 command not detected; create more links.
+  for my $exe (@exes) {
+    create_links("cmds", $exe, $san_name, $raw_name);
+  }
+
+  my $tag = extract_comment($command);
+  create_links("tags", $tag, $san_name, $raw_name) if $tag;
+
+  return 1;
+}
+
+#=====================================================================
 # Subcommands
 #=====================================================================
 
 our %sub_commands = ();
 
 $sub_commands{prompt_marker} = sub { print $PROMPT_MARKER; };
-$sub_commands{no_log_marker} = sub { print "\n$NO_LOG_MARKER\n"; };
-$sub_commands{force_log_marker} = sub { print "\n$FORCE_LOG_MARKER\n"; };
 
 $sub_commands{in_zenlog} = sub { return in_zenlog; };
 $sub_commands{fail_if_in_zenlog} = sub { return fail_if_in_zenlog; };
@@ -335,7 +538,7 @@ $sub_commands{write_to_outer} = sub {
 
 # Make sure $ZENLOG_DIR is set.  (It still may not exist.)
 $sub_commands{ensure_log_dir} = sub {
-  if ($ENV{ZENLOG_DIR}) {
+  if ($ZENLOG_DIR) {
     return 1;
   } else {
     print STDERR "Error: \$ZENLOG_DIR not set.\n";
@@ -353,15 +556,6 @@ $sub_commands{process_tty} = sub {
     return 0;
   }
 };
-
-sub get_logger_pipe() {
-  my $pipe = $ENV{ZENLOG_LOGGER_PIPE} // "";
-  if (in_zenlog and -e $pipe) {
-    return $pipe;
-  } else {
-    return "";
-  }
-}
 
 $sub_commands{logger_pipe} = sub {
   my $pipe = get_logger_pipe;
@@ -386,18 +580,7 @@ $sub_commands{show_command} = sub {
   # Don't fail, so PS0 would still be safe without zenlog.
   return 0 unless in_zenlog;
 
-  my $pipe = get_logger_pipe;
-  return 0 unless $pipe;
-
-  debug("pipe=", $pipe, "\n");
-  open(my $out, ">", $pipe) or die "Cannot open $pipe: $!\n";
-
-  print $out ("\n", $COMMAND_START_MARKER,
-      (join(" ", @_) =~ s!\r*\n! !rg),
-      $COMMAND_END_MARKER, "\n");
-
-  close $out;
-  return 1;
+  return start_log(@_);
 };
 
 # Alias.
@@ -411,19 +594,16 @@ function in_zenlog() {
 }
 
 # Run a command without logging the output.
-function zenlog_nolog() {
-  zenlog no-log-marker | zenlog write-to-logger
+function _zenlog_nolog() {
   "${@}"
 }
-alias 184=zenlog_nolog
+alias 184=_zenlog_nolog
 
 # Run a command with forcing log, regardless of ZENLOG_ALWAYS_184_COMMANDS.
-function zenlog_force_log() {
-  zenlog force-log-marker | zenlog write-to-logger
+function _zenlog_force_log() {
   "${@}"
 }
-alias 186=zenlog_force_log
-
+alias 186=_zenlog_force_log
 
 EOF
 };
@@ -432,9 +612,9 @@ sub zenlog_history($$;$) {
   my ($num, $raw, $pid) =  @_;
   Zenlog::fail_unless_in_zenlog;
 
-  $pid //= $ENV{ZENLOG_PID}; #/
+  $pid //= $ZENLOG_PID; #/
 
-  my $log_dir = "$ENV{ZENLOG_DIR}/pids/$ENV{ZENLOG_PID}/";
+  my $log_dir = "$ZENLOG_DIR/pids/$pid/";
   -d $log_dir or return ();
 
   my $name = $raw ? "R" : "P";
@@ -460,15 +640,12 @@ sub zenlog_history($$;$) {
 # Logger
 #=====================================================================
 
-# raw/san filehandles and filenames.
-my ($raw, $san, $cur_raw_name, $cur_san_name);
-
-# Log sequence number.
-my $log_seq_number = 0;
+# raw/san filehandles.
+my ($raw, $san);
 
 # Return true if we're currently logging.
 sub logging() {
-  return defined $cur_raw_name;
+  return defined $raw;
 }
 
 # Close current log.
@@ -481,95 +658,19 @@ sub close_log() {
   $san->close() if defined $san;
   undef $raw;
   undef $san;
-  undef $cur_raw_name;
-  undef $cur_san_name;
 }
 
-# Create the P and R links to the current log files.
-sub create_prev_links($) {
-  my ($link_dir) = @_;
-
-  return unless logging();
-
-  for my $mark ( "R", "P" ) {
-    my $num = 10;
-    unlink("${link_dir}/" . ($mark x $num));
-    while ($num >= 2) {
-      rename("${link_dir}/" . ($mark x ($num-1)), "${link_dir}/" . ($mark x $num));
-      $num--;
-    }
-  }
-
-  symlink($cur_raw_name, "${link_dir}/R");
-  symlink($cur_san_name, "${link_dir}/P");
-}
-
-# Create symlinks.
-sub create_links($$) {
-  my ($parent_dir_name, $dir_name) = @_;
-
-  return unless logging();
-
-  # Normalzie the directory name.
-  $dir_name =~ s! \s+ $!!xg;
-  $dir_name =~ s! [ / \s ]+ !_!xg;
-
-  # Avoid typical errors...; don't create if the directory name would
-  # be "." or "..";
-  return if $dir_name =~ m!^ ( \. | \.\. ) $!x;
-
-  my $t = time;
-
-  my $full_dir_name = "$ZENLOG_DIR/$parent_dir_name/$dir_name/";
-
-  my $raw_dir = sprintf('%s/RAW/%s',
-      $full_dir_name,
-      strftime('%Y/%m/%d', localtime($t)));
-  $raw_dir =~ s!/+!/!g;
-  my $san_dir = $raw_dir =~ s!/RAW/!/SAN/!r; #!
-
-  make_path($raw_dir);
-  make_path($san_dir);
-
-  my $raw_file = ($cur_raw_name =~ s!^.*/!!r); #!
-  my $san_file = ($cur_san_name =~ s!^.*/!!r); #!
-
-  symlink($cur_raw_name, "$raw_dir/$raw_file");
-  symlink($cur_san_name, "$san_dir/$san_file");
-
-  create_prev_links($full_dir_name);
-}
-
-sub open_log() {
+sub open_log($) {
+  my ($start_line) = @_;
   close_log();
 
-  my $t = time;
+  my ($san_name, $raw_name) = split(/\t/, $start_line);
 
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d-%04d.log',
-      $ZENLOG_DIR,
-      strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
-      ($t - int($t)) * 1000, $$, $log_seq_number++);
-  $raw_name =~ s!/+!/!g;
-  my $san_name = $raw_name =~ s!/RAW/!/SAN/!r; #!
-
-  make_path(dirname($raw_name));
-  make_path(dirname($san_name));
-
-  $cur_raw_name = $raw_name;
-  $cur_san_name = $san_name;
-
-  debug("Opening ", $cur_raw_name, " and ", $cur_san_name, "\n");
-
-  open($raw, ">$cur_raw_name");
-  open($san, ">$cur_san_name");
+  open($raw, ">$raw_name");
+  open($san, ">$san_name");
 
   $raw->autoflush();
   $san->autoflush();
-
-  # Create and update the P/R links, and also create
-  # the pids/$$/ links.
-  create_prev_links($ZENLOG_DIR);
-  create_links("pids", $$);
 }
 
 sub write_log($) {
@@ -577,28 +678,7 @@ sub write_log($) {
 
   my ($line) = @_;
   $raw->print($line);
-
-  # Sanitize
-  $line =~ s! (
-        \a                         # Bell
-        | \e \x5B .*? [\x40-\x7E]  # CSI
-        | \e \x5D .*? \x07         # Set terminal title
-        | \e \( .                  # 3 byte sequence
-        | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
-        )
-        !!gx;
-  # Also clean up CR/LFs.
-  $line =~ s! \s* \x0d* \x0a !\x0a!gx;       # Remove end-of-line CRs.
-  $line =~ s! \s* \x0d !\x0a!gx;             # Replace orphan CRs with LFs.
-
-  # Also replace ^H's.
-  $line =~ s! \x08 !^H!gx;
-  $san->print($line) if defined $san;
-}
-
-sub no_log() {
-  write_log("[retracted]\n");
-  close_log();
+  $san->print(sanitize($line));
 }
 
 sub zen_logging($) {
@@ -612,75 +692,10 @@ sub zen_logging($) {
   OUTER:
   while (defined(my $line = <$reader>)) {
 
-    if ($line =~ m!\Q$NO_LOG_MARKER\E!o) {
-      # 184 marker, skip the next command.
-      debug("No-log marker detected.\n");
-      no_log;
-      next;
-    }
-
-    if ($line =~ m!\Q$FORCE_LOG_MARKER\E!o) {
-      # 186 marker, force log the next command.
-      debug("Force-log marker detected.\n");
-      $force_log_next = 1;
-      next;
-    }
-
     # Command line and output marker.
-    if ($line =~ m! \Q$COMMAND_START_MARKER\E (.*?) \Q$COMMAND_END_MARKER\E !xo) {
-      my $command = $1;
-
-      $command =~ s!^\s+!!;
-      $command =~ s!\s+$!!;
-
-      if ($command =~ /^exit(?:\s+\d+)?$/x) {
-        # Special case; don't log 'exit'.
-        next OUTER;
-      }
-
-      # Create a log file anyway, and if it's auto-184, then retract the rest.
-      # This is to make sure "zenlog last-history" always returns something
-      # sane.
-      open_log();
-
-      # Write the command in italic-bold.
-      write_log("\$ \e[1;3;4m$command\e[0m\n");
-
-      # Split up the command by &&, ||, | and ;.
-      # TODO: Actually tokenize the command line to avoid splitting in strings...
-      my @exes = ();
-      for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
-        $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
-
-        # Remove prefix commands, such as "builtin" and "time".
-        while ($single_command =~ s!^${ZENLOG_PREFIX_COMMANDS}\s+!!o) { #!
-        }
-
-        # Get the first token, which is the command.
-        my $exe = (split(/\s+/, $single_command, 2))[0];
-
-        $exe =~ s!^ \\ !!x; # Remove first '\'.
-        $exe =~ s!^ .*/ !!x; # Remove file path
-
-        debug("Exe: ", $exe, "\n");
-        if (!$force_log_next and ($exe =~ /^$ZENLOG_ALWAYS_184_COMMANDS$/o)) {
-          debug("Always no-log detected.\n");
-          no_log;
-          next OUTER;
-        }
-        push @exes, $exe;
-      }
-      $force_log_next = 0;
-
-      # Always-184 command not detected; create more links.
-      for my $exe (@exes) {
-        create_links("cmds", $exe);
-      }
-
-      my $tag = extract_comment($command);
-      create_links("tags", $tag) if $tag;
-
-      next OUTER;
+    if ($line =~ m! \Q$LOG_START_MARKER\E\t(.*) !xo) {
+      my $start_line = $1;
+      open_log($start_line);
     }
     next unless logging;
 
@@ -702,14 +717,9 @@ sub zen_logging($) {
 # Forker
 #=====================================================================
 sub export_env() {
-  $ENV{ZENLOG_PID} = $$;
   my $tty = `tty 2>/dev/null` or die "$0: Unable to get tty: $!\n";
   chomp $tty;
-  $ENV{ZENLOG_OUTER_TTY} = $tty;
-  $ENV{ZENLOG_DIR} = $ZENLOG_DIR;
-
-  # Deprecated; it's just for backward compatibility.  Don't use it.
-  $ENV{ZENLOG_CUR_LOG_DIR} = $ENV{ZENLOG_DIR};
+  export_vars();
 }
 
 sub start() {
@@ -785,7 +795,6 @@ sub main(@) {
 
   my $subcommand_us = $subcommand =~ s!-!_!gr; #!
   my $subcommand_hy = $subcommand =~ s!_!-!gr; #!
-
   # See if there's a function for that.
   if (exists $sub_commands{$subcommand_us}) {
     exit(&{$sub_commands{$subcommand_us}}(@args) ? 0 : 1);
