@@ -435,7 +435,7 @@ sub zenlog_history($$;$) {
   $pid //= $ENV{ZENLOG_PID}; #/
 
   my $log_dir = "$ENV{ZENLOG_DIR}/pids/$ENV{ZENLOG_PID}/";
-  -d $log_dir or die "Log directory '$log_dir' not found.\n";
+  -d $log_dir or return ();
 
   my $name = $raw ? "R" : "P";
 
