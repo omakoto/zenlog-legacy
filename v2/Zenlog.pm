@@ -420,7 +420,7 @@ sub create_log($$) {
 
   open(my $raw, ">", $raw_name);
   open(my $san, ">", $san_name);
-  my $line = "\$ \e[1;3;4m$command\e[0m\n";
+  my $line = "\$ \e[1;3;4;33m$command\e[0m\n";
   $line .= "[omitted]\n" if $omitted;
   print $raw $line;
   print $san sanitize($line);
