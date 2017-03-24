@@ -304,7 +304,7 @@ sub extract_comment($) {
 }
 
 #=====================================================================
-# Log file creation.
+# Log file creation.  Called by start-command in the shell side.
 #=====================================================================
 
 sub sanitize($) {
@@ -635,7 +635,7 @@ sub zenlog_history($$;$) {
 }
 
 #=====================================================================
-# Logger
+# Logger.  This is the only part that runs in the background.
 #=====================================================================
 
 # raw/san filehandles.
@@ -687,7 +687,6 @@ sub zen_logging($) {
 
   my $force_log_next = 0;
 
-  OUTER:
   while (defined(my $line = <$reader>)) {
 
     # Command line and output marker.
