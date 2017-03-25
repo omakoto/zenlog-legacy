@@ -211,7 +211,7 @@ sub shescape_ee($) {
   return (shescape($arg) =~ s!\x1b!\\e!rg); #!
 }
 
-sub get_process_tty() {
+sub get_tty() {
   my $tty =
       POSIX::ttyname(0) ||
       POSIX::ttyname(1) ||
@@ -230,7 +230,7 @@ sub get_process_tty() {
 
 # Return true if in zenlog.
 sub in_zenlog() {
-  my $tty = get_process_tty();
+  my $tty = get_tty();
   my $in_zenlog = (($ENV{ZENLOG_TTY} // "") eq $tty);
   return $in_zenlog;
 }
@@ -240,7 +240,7 @@ sub fail_if_in_zenlog() {
   in_zenlog and die "Already in zenlog.\n";
 }
 
-# Die if *not* in zenlog.
+# Die if not in zenlog.
 sub fail_unless_in_zenlog() {
   in_zenlog or die "Not in zenlog.\n";
 }
@@ -254,18 +254,60 @@ sub get_logger_pipe() {
   }
 }
 
+# Remove escape sequences for SAN log.
+sub sanitize($) {
+  my ($str) = @_;
+
+  $str =~ s! (
+        \a                         # Bell
+        | \e \x5B .*? [\x40-\x7E]  # CSI
+        | \e \x5D .*? \x07         # Set terminal title
+        | \e \( .                  # 3 byte sequence
+        | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
+        )
+        !!gx;
+
+  # Also clean up CR/LFs.
+  $str =~ s! \s* \x0d* \x0a !\x0a!gx;       # Remove end-of-line CRs.
+  $str =~ s! \s* \x0d !\x0a!gx;             # Replace orphan CRs with LFs.
+
+  # Also replace ^H's.
+  $str =~ s! \x08 !^H!gx;
+  return $str;
+}
+
+# Read from STDIN, and write to $path, if in-zenlog.
+# Otherwise just write to STDOUT.
+sub pipe_stdin_to_file($$) {
+  my ($path, $cr_needed) = @_;
+  *OUT = *STDOUT;
+  if (in_zenlog) {
+    open(OUT, ">", $path) or die "Cannot open '$path': $!\n";
+  } else {
+    $cr_needed = 0;
+  }
+  while(defined(my $line = <STDIN>)) {
+    if ($cr_needed) {
+      $line =~ s!\r*\n!\r\n!g;
+    }
+    print OUT $line;
+  }
+  close OUT;
+  return 1;
+}
+
 #=====================================================================
 # Shell command parsing helpers.
 #=====================================================================
 
-# Extract the comment, if exists, from a command line.
+# Extract the comment, if exists, from a command line string.
 sub extract_comment($) {
-  my ($file) = @_;
+  my ($str) = @_;
 
   my $i = 0;
   my $next_char = sub {
-    return undef if $i >= length($file);
-    return substr($file, $i++, 1);
+    return undef if $i >= length($str);
+    return substr($str, $i++, 1);
   };
   my $ch;
 
@@ -273,7 +315,7 @@ sub extract_comment($) {
   while (defined($ch = &$next_char())) {
     if ($ch eq '#') {
       # Remove the leading spaces and return.
-      return substr($file, $i) =~ s/^\s+//r; #/
+      return substr($str, $i) =~ s/^\s+//r; #/
     }
     if ($ch eq '\\') {
       $i++;
@@ -304,33 +346,10 @@ sub extract_comment($) {
 }
 
 #=====================================================================
-# Log file creation.
+# Log file creation.  Called by start-command in the shell side.
 #=====================================================================
 
-# Log sequence number.
-my $log_seq_number = 0;
-
-sub sanitize($) {
-  my ($line) = @_;
-  # Sanitize
-  $line =~ s! (
-        \a                         # Bell
-        | \e \x5B .*? [\x40-\x7E]  # CSI
-        | \e \x5D .*? \x07         # Set terminal title
-        | \e \( .                  # 3 byte sequence
-        | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
-        )
-        !!gx;
-  # Also clean up CR/LFs.
-  $line =~ s! \s* \x0d* \x0a !\x0a!gx;       # Remove end-of-line CRs.
-  $line =~ s! \s* \x0d !\x0a!gx;             # Replace orphan CRs with LFs.
-
-  # Also replace ^H's.
-  $line =~ s! \x08 !^H!gx;
-  return $line;
-}
-
-# Create the P and R links to the current log files.
+# Create the P and R links to the log files.
 sub create_prev_links($$$) {
   my ($link_dir, $san_name, $raw_name) = @_;
 
@@ -351,21 +370,21 @@ sub create_prev_links($$$) {
 sub create_links($$$$) {
   my ($parent_dir_name, $dir_name, $san_name, $raw_name) = @_;
 
-  # Normalzie the directory name.
+  # Normalize the directory name.
   $dir_name =~ s! \s+ $!!xg;
-  $dir_name =~ s! [ / \s ]+ !_!xg;
+  $dir_name =~ s! [ / \s ]+ !_!xg; # Don't include space and slashes.
 
-  # Avoid typical errors...; don't create if the directory name would
+  # Avoid typical errors... Don't create if the directory name would
   # be "." or "..";
   return if $dir_name =~ m!^ ( \. | \.\. ) $!x;
 
-  my $t = time;
-
   my $full_dir_name = "$ZENLOG_DIR/$parent_dir_name/$dir_name/";
 
+  my $t = time;
   my $raw_dir = sprintf('%s/RAW/%s',
       $full_dir_name,
       strftime('%Y/%m/%d', localtime($t)));
+
   $raw_dir =~ s!/+!/!g;
   my $san_dir = $raw_dir =~ s!/RAW/!/SAN/!r; #!
 
@@ -381,14 +400,16 @@ sub create_links($$$$) {
   create_prev_links($full_dir_name, $san_name, $raw_name);
 }
 
+# Create a new pair of RAW / SAN files and write the command line,
+# and [omitted] marker if needed.
 sub create_log($$) {
   my ($command, $omitted) = @_;
-  my $t = time;
 
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d-%04d.log',
+  my $t = time;
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d.log',
       $ZENLOG_DIR,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
-      ($t - int($t)) * 1000, $ZENLOG_PID, $log_seq_number++);
+      ($t - int($t)) * 1000, $ZENLOG_PID);
   $raw_name =~ s!/+!/!g;
   my $san_name = $raw_name =~ s!/RAW/!/SAN/!r; #!
 
@@ -399,21 +420,24 @@ sub create_log($$) {
 
   open(my $raw, ">", $raw_name);
   open(my $san, ">", $san_name);
-  my $line = "\$ \e[1;3;4m$command\e[0m\n";
+  my $line = "\$ \e[1;3;4;33m$command\e[0m\n";
   $line .= "[omitted]\n" if $omitted;
   print $raw $line;
   print $san sanitize($line);
   close $raw;
   close $san;
 
-  # Create and update the P/R links, and also create
-  # the pids/$$/ links.
+  # Create and update the P/R links, and also create the pids/$$/
+  # links.
+  # We always create pid links, even for 184 commands, to keep
+  # "zenlog history" sane.
   create_prev_links($ZENLOG_DIR, $san_name, $raw_name);
   create_links("pids", $ZENLOG_PID, $san_name, $raw_name);
 
   return ($san_name, $raw_name);
 }
 
+# Write the san/raw log file names to the logger directly.
 sub write_log_names($$) {
   my ($san_name, $raw_name) = @_;
   my $pipe = get_logger_pipe;
@@ -425,6 +449,7 @@ sub write_log_names($$) {
   close $out;
 }
 
+# Body of "zenlog start-command".
 sub start_log(@) {
   my (@command_line) = @_;
 
@@ -435,20 +460,21 @@ sub start_log(@) {
   $command =~ s!^\s+!!;
   $command =~ s!\s+$!!;
 
-  if ($command =~ /^exit(?:\s+\d+)?$/x) {
+  if ($command =~ /^exit(?:\s+\d+)?/x) {
     # Special case; don't log 'exit'.
     return 1;
   }
 
   # If the line starts with "184", then don't log.
-  my $omit = ($command =~ m!^ [\s\(]+ 184 \s+ !x) ? 1 : 0;
+  my $omit = ($command =~ m!^ [\s\(]* 184 \s+ !x) ? 1 : 0;
 
-  # But 186 will trump.
-  my $no_omit = ($command =~ m!^ [\s\(]+ 186 \s+ !x) ? 1 : 0;
+  # But 186 will overrule 184.
+  my $no_omit = ($command =~ m!^ [\s\(]* 186 \s+ !x) ? 1 : 0;
   $omit = 0 if $no_omit;
 
   # Split up the command by &&, ||, | and ;.
-  # TODO: Actually tokenize the command line to avoid splitting in strings...
+  # TODO: Actually tokenize the command line to avoid splitting in the
+  # middle of a string...
   my @exes = ();
   for my $single_command ( split(/(?: \&\& | \|\|? | \; )/x, $command)) {
     $single_command =~ s!^ [ \s \( ]+ !!x; # Remove prefixing ('s.
@@ -475,9 +501,11 @@ sub start_log(@) {
   # Note even if omitting, we still create the log files.
   # This is to make sure "zenlog last-history" always returns something sane.
   my ($san_name, $raw_name) = create_log($command, $omit);
-  write_log_names($san_name, $raw_name);
 
   return 1 if $omit;
+
+  # Tell the logger the filenames.
+  write_log_names($san_name, $raw_name);
 
   # 184 command not detected; create more links.
   for my $exe (@exes) {
@@ -509,31 +537,11 @@ $sub_commands{outer_tty} = sub {
   return 1;
 };
 
-# Read from STDIN, and write to $path, if in-zenlog.
-# Otherwise just write to STDOUT.
-sub pipe_to_file($$) {
-  my ($path, $cr_needed) = @_;
-  *OUT = *STDOUT;
-  if (in_zenlog) {
-    open(OUT, ">", $path) or die "Cannot open '$path': $!\n";
-  } else {
-    $cr_needed = 0;
-  }
-  while(defined(my $line = <STDIN>)) {
-    if ($cr_needed) {
-      $line =~ s!\r*\n!\r\n!g;
-    }
-    print OUT $line;
-  }
-  close OUT;
-  return 1;
-}
-
 # Pipe to the outer TTY.
 # Example:
 # echo "This will not be logged, but shown on terminal." | zenlog write-to-outer
 $sub_commands{write_to_outer} = sub {
-  return pipe_to_file($ENV{ZENLOG_OUTER_TTY}, 1);
+  return pipe_stdin_to_file($ENV{ZENLOG_OUTER_TTY}, 1);
 };
 
 # Make sure $ZENLOG_DIR is set.  (It still may not exist.)
@@ -548,7 +556,7 @@ $sub_commands{ensure_log_dir} = sub {
 
 # Show the TTY associated with the current process.
 $sub_commands{process_tty} = sub {
-  my $tty = get_process_tty;
+  my $tty = get_tty;
   if ($tty) {
     print $tty, "\n";
     return 1;
@@ -572,7 +580,7 @@ $sub_commands{logger_pipe} = sub {
 # Example:
 # echo "This will be logged, not shown on terminal" | zenlog write-to-logger
 $sub_commands{write_to_logger} = sub {
-  return pipe_to_file((get_logger_pipe() or "/dev/null"), 0);
+  return pipe_stdin_to_file((get_logger_pipe() or "/dev/null"), 0);
 };
 
 # Print outer-tty, only when in-zenlog.
@@ -637,10 +645,10 @@ sub zenlog_history($$;$) {
 }
 
 #=====================================================================
-# Logger
+# Logger.  This is the only part that runs in the background.
 #=====================================================================
 
-# raw/san filehandles.
+# RAW/SAN file handles.
 my ($raw, $san);
 
 # Return true if we're currently logging.
@@ -666,8 +674,8 @@ sub open_log($) {
 
   my ($san_name, $raw_name) = split(/\t/, $start_line);
 
-  open($raw, ">$raw_name");
-  open($san, ">$san_name");
+  open($raw, ">>", $raw_name);
+  open($san, ">>", $san_name);
 
   $raw->autoflush();
   $san->autoflush();
@@ -689,13 +697,13 @@ sub zen_logging($) {
 
   my $force_log_next = 0;
 
-  OUTER:
   while (defined(my $line = <$reader>)) {
 
     # Command line and output marker.
     if ($line =~ m! \Q$LOG_START_MARKER\E\t(.*) !xo) {
       my $start_line = $1;
       open_log($start_line);
+      next;
     }
     next unless logging;
 
@@ -717,8 +725,7 @@ sub zen_logging($) {
 # Forker
 #=====================================================================
 sub export_env() {
-  my $tty = `tty 2>/dev/null` or die "$0: Unable to get tty: $!\n";
-  chomp $tty;
+  $ENV{ZENLOG_OUTER_TTY} = get_tty;
   export_vars();
 }
 
