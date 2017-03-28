@@ -144,8 +144,10 @@ sub debug(@) {
   }
 }
 
-my $STOP_LOG_MARKER =       "\x1b[0m\x1b[1m\x1b[00000m";
+# TODO They're no longer shown on the console, so no longer need to be
+# escape sequences.
 my $LOG_START_MARKER =      "\x1b[0m\x1b[4m\x1b[00000m";
+my $STOP_LOG_MARKER =       "\x1b[0m\x1b[1m\x1b[00000m";
 
 my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
 
