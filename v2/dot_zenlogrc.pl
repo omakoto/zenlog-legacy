@@ -1,7 +1,7 @@
 # Sample zenlog initialization file.
 
 # Start this command instead of the default shell.
-$ENV{ZENLOG_START_COMMAND} = "$ENV{HOME}/cbin/bin-linux64/lbash -l";
+$ENV{ZENLOG_START_COMMAND} = "$ENV{HOME}/cbin/bin-linux64/lbash -l" unless defined $ENV{ZENLOG_START_COMMAND};
 
 # Log directory.
 $ENV{ZENLOG_DIR} = "/zenlog/";
