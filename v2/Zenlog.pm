@@ -8,6 +8,7 @@ use Time::HiRes qw(time);
 use File::Path qw(make_path);
 use File::Basename;
 use File::Path;
+use Fcntl;
 
 use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
 
@@ -24,20 +25,25 @@ Zenlog
   saved in a separate log file.
 
   ** MAKE SURE **
-  ** - Update PS1 and include $(zenlog prompt-marker) in it **
   ** - Execute "zenlog start-command COMMAND LINE" in PS0 (aka preexec) **
+  ** - Execute "zenlog stop-log" in PROMPT_COMMAND **
 
 Usage:
   - zenlog
     Start a new shell.
 
-  - zenlog prompt-marker
-    Print the marker that must be set to PS1 to tell zenlog the end of
-    each command.
+  - zenlog start-command COMMAND [ARGS...]
+    Start a command log.
+
+    ** Call it in in PS0 (aka preexec) **
+
+  - zenlog stop-log
+    Stop the current command log.
+
+    ** Call it in in PROMPT_COMMAND **
 
   - zenlog prompt-marker
-    Print the marker that must be set to PS1 to tell zenlog the end of
-    each command.
+    ** DEPRECATED: Use stop-log instead **
 
   - zenlog write-to-outer
     Write the content from the stdin on console, but not to the log.
@@ -138,7 +144,7 @@ sub debug(@) {
   }
 }
 
-my $PROMPT_MARKER =         "\x1b[0m\x1b[1m\x1b[00000m";
+my $STOP_LOG_MARKER =       "\x1b[0m\x1b[1m\x1b[00000m";
 my $LOG_START_MARKER =      "\x1b[0m\x1b[4m\x1b[00000m";
 
 my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
@@ -157,6 +163,8 @@ my $ZENLOG_PREFIX_COMMANDS = $ENV{ZENLOG_PREFIX_COMMANDS};
 
 # Always not log output from these commands.
 my $ZENLOG_ALWAYS_184_COMMANDS = $ENV{ZENLOG_ALWAYS_184_COMMANDS};
+
+my $ZENLOG_TEMP_DIR = $ENV{TMP} // $ENV{TEMP} // $ENV{TEMP_DIR};
 
 sub export_vars() {
   $ENV{ZENLOG_PID} = $$;
@@ -247,6 +255,15 @@ sub fail_unless_in_zenlog() {
 
 sub get_logger_pipe() {
   my $pipe = $ENV{ZENLOG_LOGGER_PIPE} // "";
+  if (in_zenlog and -e $pipe) {
+    return $pipe;
+  } else {
+    return "";
+  }
+}
+
+sub get_rev_pipe() {
+  my $pipe = $ENV{ZENLOG_REV_PIPE} // "";
   if (in_zenlog and -e $pipe) {
     return $pipe;
   } else {
@@ -437,16 +454,54 @@ sub create_log($$) {
   return ($san_name, $raw_name);
 }
 
+sub write_to_file($@) {
+  my ($file, @args) = @_;
+
+  debug("writing to ", $file, "\n");
+  open(my $out, ">", $file) or die "Cannot open $file: $!\n";
+  print $out (@args);
+  close $out;
+}
+
+sub read_from_file($@) {
+  my ($file) = @_;
+
+  debug("reading from ", $file, "\n");
+  open(my $in, "<", $file) or die "Cannot open $file: $!\n";
+  my $line = <$in>;
+  close $in;
+  return $line;
+}
+
+sub drain_pipe($) {
+  my ($file) = @_;
+  debug "draining ", $file, "\n";
+  open(my $in, "<", $file) or die "Cannot open $file: $!\n";
+  my $flags = 0;
+  fcntl($in, F_GETFL, $flags);
+  $flags |= O_NONBLOCK;
+  fcntl($in, F_SETFL, $flags);
+
+  my $size = 0;
+  my $buf = "";
+  while (defined ($size = read($in, $buf, 1024))) {
+  }
+  close $in;
+  debug "drained ", $file, "\n";
+}
+
+sub write_to_logger_pipe(@) {
+  write_to_file(get_logger_pipe, @_);
+}
+
+sub write_to_rev_pipe(@) {
+  write_to_file(get_rev_pipe, @_);
+}
+
 # Write the san/raw log file names to the logger directly.
 sub write_log_names($$) {
   my ($san_name, $raw_name) = @_;
-  my $pipe = get_logger_pipe;
-  return unless $pipe;
-
-  debug("pipe=", $pipe, "\n");
-  open(my $out, ">", $pipe) or die "Cannot open $pipe: $!\n";
-  print $out ($LOG_START_MARKER, "\t", $san_name, "\t", $raw_name, "\n");
-  close $out;
+  write_to_logger_pipe($LOG_START_MARKER, "\t", $san_name, "\t", $raw_name, "\n");
 }
 
 # Body of "zenlog start-command".
@@ -518,13 +573,22 @@ sub start_log(@) {
   return 1;
 }
 
+# Body of "zenlog stop-log".
+sub stop_log(@) {
+  my $rev = get_rev_pipe;
+  drain_pipe $rev;
+  write_to_logger_pipe($STOP_LOG_MARKER, "\n");
+
+  debug "waiting on confirmation.\n";
+  read_from_file $rev;
+}
 #=====================================================================
 # Subcommands
 #=====================================================================
 
 our %sub_commands = ();
 
-$sub_commands{prompt_marker} = sub { print $PROMPT_MARKER; };
+$sub_commands{prompt_marker} = sub { print $STOP_LOG_MARKER; };
 
 $sub_commands{in_zenlog} = sub { return in_zenlog; };
 $sub_commands{fail_if_in_zenlog} = sub { return fail_if_in_zenlog; };
@@ -589,6 +653,12 @@ $sub_commands{show_command} = sub {
   return 0 unless in_zenlog;
 
   return start_log(@_);
+};
+
+$sub_commands{stop_log} = sub {
+  return 0 unless in_zenlog;
+
+  return stop_log(@_);
 };
 
 # Alias.
@@ -689,11 +759,12 @@ sub write_log($) {
   $san->print(sanitize($line));
 }
 
-sub zen_logging($) {
-  my ($reader) = @_;
+sub zen_logging($$) {
+  my ($reader, $writer) = @_;
 
   make_path($ZENLOG_DIR);
-  print "Logging to '$ZENLOG_DIR'...\n";
+  # Terminal is already in the RAW mode, so add \r.
+  print "Logging to '$ZENLOG_DIR'...\r\n";
 
   my $force_log_next = 0;
 
@@ -705,16 +776,20 @@ sub zen_logging($) {
       open_log($start_line);
       next;
     }
-    next unless logging;
 
-    if ($line =~ m!^ (.*) \Q$PROMPT_MARKER\E !xo) {
+    if ($line =~ m!^ (.*) \Q$STOP_LOG_MARKER\E !xo) {
       debug("Prompt detected.\n");
-      # Prompt detected.
-      my $rest = $1;
-      write_log $rest if $1;
-      close_log;
+      if (logging) {
+        # Prompt detected.
+        my $rest = $1;
+        write_log $rest if $1;
+        close_log;
+      }
+      print $writer "\n";
+      debug("Wrote reply.\n");
       next;
     }
+    next unless logging;
     write_log($line);
   }
   close_log();
@@ -738,12 +813,19 @@ sub start() {
   my ($reader_fd, $writer_fd) = POSIX::pipe();
   $reader_fd or die "$0: pipe() failed: $!\n";
 
-  debug("Pipe opened: read=$reader_fd, write=$writer_fd\n");
+  my ($reader2_fd, $writer2_fd) = POSIX::pipe();
+  $reader2_fd or die "$0: pipe() failed: $!\n";
+
+  debug("Pipe opened: ",
+      "[read=$reader_fd, write=$writer_fd]\n",
+      "[read2=$reader2_fd, write=$writer2_fd]\n",
+      );
 
   my $child_pid;
   if (($child_pid = fork()) == 0) {
     # Child
     POSIX::close($reader_fd);
+    POSIX::close($writer2_fd);
 
     my $start_command = $ZENLOG_START_COMMAND;
     my @command = ("script",
@@ -751,6 +833,7 @@ sub start() {
         "export ZENLOG_TTY=\$(tty);"
         . "export ZENLOG_SHELL_PID=\$\$;"
         . "export ZENLOG_LOGGER_PIPE=/proc/\$\$/fd/$writer_fd;"
+        . "export ZENLOG_REV_PIPE=/proc/\$\$/fd/$reader2_fd;"
         . "exec $start_command",
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
@@ -763,12 +846,17 @@ sub start() {
   }
   # Parent
   POSIX::close($writer_fd);
+  POSIX::close($reader2_fd);
   open(my $reader, "<&=", $reader_fd) or die "$0: fdopen failed: $!\n";
+  open(my $writer, ">&=", $writer2_fd) or die "$0: fdopen failed: $!\n";
+
+  $writer->autoflush();
 
   # Now $reader is the log input.
 
-  zen_logging($reader);
+  zen_logging($reader, $writer);
   close $reader;
+  close $writer;
   waitpid $child_pid, 0;
   return 1;
 }
