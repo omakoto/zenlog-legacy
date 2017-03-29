@@ -24,9 +24,23 @@ Zenlog
   Start a new shell where all input/output from each command will be
   saved in a separate log file.
 
-  ** MAKE SURE **
-  ** - Execute "zenlog start-command COMMAND LINE" in PS0 (aka preexec) **
-  ** - Execute "zenlog stop-log" in PROMPT_COMMAND **
+Setup:
+  - Create ~/.zenlogrc.pl and set up ZENLOG* environmental variables.
+    See dot_zenlogrc.pl for an example.
+
+  - Edit your shell's RC and:
+    - Execute "zenlog start-command COMMAND LINE" in PS0 (aka preexec)
+      In order to get the current command line in bash, the bash_last_command
+      command provided by zenlog sh-helper can be used.
+
+      * Example -- put it in .bashrc.
+      . <(zenlog sh-helper) # To install bash_last_command
+      PS0='$(zenlog start-command $(bash_last_command))'
+
+    - Execute "zenlog stop-log" in PROMPT_COMMAND
+
+      * Example -- put it in .bashrc.
+      PROMPT_COMMAND="zenlog stop-log"
 
 Usage:
   - zenlog
@@ -45,6 +59,35 @@ Usage:
   - zenlog prompt-marker
     ** DEPRECATED: Use stop-log instead **
 
+  - zenlog in-zenlog
+    Return sucess iif in zenlog.
+
+  - zenlog history [-n NTH] [-r for raw file]
+    Print the last log filenames on the current terminal.
+
+    Run "zenlog history -h" for more options.
+
+  - zenlog last-log [-r for raw file]
+    Print the last log filename on the current terminal.
+
+  - zenlog sh-helper
+    Use it like ". <(zenlog sh-helper)" to install support
+    functions to the current shell.
+
+    Commands are:
+      - in_zenlog
+          Equaivalent to "zenlog in-zenlog".
+
+      - 184 COMMAND [args...]
+          Run the passed command without logging the output.
+          Example:
+            184 emacs
+
+  - zenlog -s [deprecated]
+    Use it like ". <(zenlog -s)" to install v1-compatible
+    support functions to the current shell.
+
+Other subcommands:
   - zenlog write-to-outer
     Write the content from the stdin on console, but not to the log.
 
@@ -75,51 +118,21 @@ Usage:
     Example:
       zenlog_du -h
 
-  - zenlog in-zenlog
-    Return sucess iif in zenlog.
-
-  - zenlog sh-helper
-    Use it like ". <(zenlog sh-helper)" to install support
-    functions to the current shell.
-
-    Commands are:
-      - in_zenlog
-          Equaivalent to "zenlog in-zenlog".
-
-      - 184 COMMAND [args...]
-          Run the passed command without logging the output.
-          Example:
-            184 emacs
-
-  - zenlog -s [deprecated]
-    Use it like ". <(zenlog -s)" to install v1-compatible
-    support functions to the current shell.
-
-  Other subcommands:
-  - zenlog history [-n NTH] [-r for raw file]
-    Print the last log filenames on the current terminal.
-
-    Run "zenlog history -h" for more options.
-
-  - zenlog last-log [-r for raw file]
-    Print the last log filename on the current terminal.
-
-  Files:
-    $HOME/.zenlogrc.pl
+Files:
+  - $HOME/.zenlogrc.pl
           Initialization file.
           (See dot_zenlogrc.pl as an example.)
 
-  Environmental variables:
-    ZENLOG_DIR
+Environmental variables:
+  - ZENLOG_DIR
           Specify log file directory.
 
-    ZENLOG_START_COMMAND
+  - ZENLOG_START_COMMAND
           If set, start this command instead of "$SHELL -l".
 
-    ZENLOG_ALWAYS_184
+  - ZENLOG_ALWAYS_184
           Regex to match command names that shouldn't be logged.
           (^ and $ are assumed.)
-          Needs to be used with zenlog_echo_command.
           Example: export ZENLOG_ALWAYS_184="(vi|emacs|man|zenlog.*)"
 
     ZENLOG_COMMAND_PREFIX
@@ -129,7 +142,7 @@ Usage:
           This allows, e.g., a command "time ls -l" to be handled as
           "ls -l".
 
-          Example: export ZENLOG_COMMAND_PREFIX="(builtin|time|sudo)"
+          Example: export ZENLOG_COMMAND_PREFIX="(command|builtin|time|sudo)"
 
 EOF
 }
@@ -144,8 +157,10 @@ sub debug(@) {
   }
 }
 
-my $STOP_LOG_MARKER =       "\x1b[0m\x1b[1m\x1b[00000m";
+# TODO They're no longer shown on the console, so no longer need to be
+# escape sequences.
 my $LOG_START_MARKER =      "\x1b[0m\x1b[4m\x1b[00000m";
+my $STOP_LOG_MARKER =       "\x1b[0m\x1b[1m\x1b[00000m";
 
 my $RC_FILE =  "$ENV{HOME}/.zenlogrc.pl";
 
@@ -191,9 +206,9 @@ sub load_rc() {
       ($ENV{ZENLOG_DIR} // "/tmp/zenlog/"); #"
 
   # Prefix commands are ignored when command lines are parsed;
-  # for example "sudo cat" will considered to be a "cat" command.
+  # for example "sudo cat" will be considered as a "cat" command.
   $ZENLOG_PREFIX_COMMANDS =
-      ($ENV{ZENLOG_PREFIX_COMMANDS} // "(?:builtin|time|sudo)");
+      ($ENV{ZENLOG_PREFIX_COMMANDS} // "(?:command|builtin|time|sudo)");
 
   # Always not log output from these commands.
   $ZENLOG_ALWAYS_184_COMMANDS =
@@ -201,22 +216,6 @@ sub load_rc() {
       // "(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)");
 
   debug("ZENLOG_DIR=", $ZENLOG_DIR, "\n");
-}
-
-# Escape a string for shell.
-sub shescape($) {
-  my ($arg) = @_;
-  if ( $arg =~ /[^a-zA-Z0-9\-\.\_\/]/ ) {
-      return ("'" . ($arg =~ s/'/'\\''/gr) . "'"); #/
-  } else {
-      return $arg;
-  }
-}
-
-# shescape + convert ESC's to '\e'.
-sub shescape_ee($) {
-  my ($arg) = @_;
-  return (shescape($arg) =~ s!\x1b!\\e!rg); #!
 }
 
 sub get_tty() {
@@ -683,6 +682,12 @@ function _zenlog_force_log() {
 }
 alias 186=_zenlog_force_log
 
+# Print the current command's command line.  Use with "zenlog start-command".
+function bash_last_command() {
+  # Use echo to remove newlines.
+  echo $(HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//')
+}
+
 EOF
 };
 
@@ -763,7 +768,8 @@ sub zen_logging($$) {
   my ($reader, $writer) = @_;
 
   make_path($ZENLOG_DIR);
-  print "Logging to '$ZENLOG_DIR'...\n";
+  # Terminal is already in the RAW mode, so add \r.
+  print "Logging to '$ZENLOG_DIR'...\r\n";
 
   my $force_log_next = 0;
 
@@ -819,13 +825,11 @@ sub start() {
       "[read=$reader_fd, write=$writer_fd]\n",
       "[read2=$reader2_fd, write=$writer2_fd]\n",
       );
-  $ENV{ZENLOG_REV_PIPE} = "/proc/$$/fd/$reader2_fd";
 
   my $child_pid;
   if (($child_pid = fork()) == 0) {
     # Child
     POSIX::close($reader_fd);
-    POSIX::close($reader2_fd);
     POSIX::close($writer2_fd);
 
     my $start_command = $ZENLOG_START_COMMAND;
@@ -834,10 +838,10 @@ sub start() {
         "export ZENLOG_TTY=\$(tty);"
         . "export ZENLOG_SHELL_PID=\$\$;"
         . "export ZENLOG_LOGGER_PIPE=/proc/\$\$/fd/$writer_fd;"
-        # . "export ZENLOG_REV_PIPE=/proc/\$\$/fd/$reader2_fd;"
+        . "export ZENLOG_REV_PIPE=/proc/\$\$/fd/$reader2_fd;"
         . "exec $start_command",
         "/proc/self/fd/$writer_fd");
-    debug("Starting: ", join(" ", map(shescape($_), @command)), "\n");
+    debug("Starting: ", join(" ", @command), "\n");
     if (!exec(@command)) {
       # kill 'INT', getppid;
       warn "$0: failed to start script: $!\n";
@@ -847,6 +851,7 @@ sub start() {
   }
   # Parent
   POSIX::close($writer_fd);
+  POSIX::close($reader2_fd);
   open(my $reader, "<&=", $reader_fd) or die "$0: fdopen failed: $!\n";
   open(my $writer, ">&=", $writer2_fd) or die "$0: fdopen failed: $!\n";
 
@@ -857,8 +862,6 @@ sub start() {
   zen_logging($reader, $writer);
   close $reader;
   close $writer;
-  POSIX::close($reader2_fd);
-  POSIX::close($writer2_fd);
   waitpid $child_pid, 0;
   return 1;
 }
