@@ -825,11 +825,13 @@ sub start() {
       "[read=$reader_fd, write=$writer_fd]\n",
       "[read2=$reader2_fd, write=$writer2_fd]\n",
       );
+  $ENV{ZENLOG_REV_PIPE} = "/proc/$$/fd/$reader2_fd";
 
   my $child_pid;
   if (($child_pid = fork()) == 0) {
     # Child
     POSIX::close($reader_fd);
+    POSIX::close($reader2_fd);
     POSIX::close($writer2_fd);
 
     my $start_command = $ZENLOG_START_COMMAND;
@@ -838,7 +840,7 @@ sub start() {
         "export ZENLOG_TTY=\$(tty);"
         . "export ZENLOG_SHELL_PID=\$\$;"
         . "export ZENLOG_LOGGER_PIPE=/proc/\$\$/fd/$writer_fd;"
-        . "export ZENLOG_REV_PIPE=/proc/\$\$/fd/$reader2_fd;"
+        #. "export ZENLOG_REV_PIPE=/proc/\$\$/fd/$reader2_fd;"
         . "exec $start_command",
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", @command), "\n");
@@ -851,7 +853,6 @@ sub start() {
   }
   # Parent
   POSIX::close($writer_fd);
-  POSIX::close($reader2_fd);
   open(my $reader, "<&=", $reader_fd) or die "$0: fdopen failed: $!\n";
   open(my $writer, ">&=", $writer2_fd) or die "$0: fdopen failed: $!\n";
 
@@ -862,6 +863,7 @@ sub start() {
   zen_logging($reader, $writer);
   close $reader;
   close $writer;
+  POSIX::close($reader2_fd);
   waitpid $child_pid, 0;
   return 1;
 }
