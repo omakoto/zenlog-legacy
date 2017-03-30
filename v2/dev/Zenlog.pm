@@ -809,6 +809,20 @@ sub export_env() {
   export_vars();
 }
 
+sub move_to_high($) {
+  my ($fd) = @_;
+
+  my $new = 100;
+  while (-e "/proc/self/fd/$new") {
+    $new++;
+  }
+  dup2($fd, $new) or die "dup2 failed: $!\n";
+  debug("Fd moved from ", $fd, " to ", $new, "\n");
+  POSIX::close($fd);
+
+  return $new;
+}
+
 sub start() {
   load_rc;
   export_env;
@@ -826,6 +840,7 @@ sub start() {
       "[read2=$reader2_fd, write=$writer2_fd]\n",
       );
   $ENV{ZENLOG_REV_PIPE} = "/proc/$$/fd/$reader2_fd";
+  $writer_fd = move_to_high($writer_fd);
 
   my $child_pid;
   if (($child_pid = fork()) == 0) {
