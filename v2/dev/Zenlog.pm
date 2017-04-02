@@ -1,4 +1,14 @@
+#!/usr/bin/perl -w
 package Zenlog;
+
+# Failsafe.
+BEGIN {
+  $SIG{__DIE__} = sub {
+    print STDERR "$@";
+    print STDERR "\nzenlog: unable to start; starting /bin/sh instead.\n";
+    exec "/bin/sh";
+  };
+}
 
 use strict;
 use warnings;
@@ -10,8 +20,13 @@ use File::Path qw(make_path);
 use File::Basename;
 use File::Path;
 use Fcntl;
+use FindBin;
+use lib "$FindBin::RealBin";
 
 use constant DEBUG => ($ENV{ZENLOG_DEBUG} or 0);
+
+# Whether called as "zenlog" or loaded as a module.
+our $main = !defined caller(0);
 
 #=====================================================================
 # Usage for the zenlog command.
@@ -940,5 +955,7 @@ sub main(@) {
 
   die "zenlog: Unknown subcommand '$subcommand'.\n";
 }
+
+main(@ARGV) if $main;
 
 1;
