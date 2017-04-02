@@ -869,17 +869,21 @@ sub start() {
   # Parent
   POSIX::close($writer_fd);
   open(my $reader, "<&=", $reader_fd) or die "$0: fdopen failed: $!\n";
-  open(my $writer, ">&=", $writer2_fd) or die "$0: fdopen failed: $!\n";
+  open(my $writer2, ">&=", $writer2_fd) or die "$0: fdopen failed: $!\n";
 
-  $writer->autoflush();
+  $writer2->autoflush();
 
   # Now $reader is the log input.
 
-  zen_logging($reader, $writer);
-  close $reader;
-  close $writer;
-  POSIX::close($reader2_fd);
-  waitpid $child_pid, 0;
+  # Without this, the "exit" would cause a deadlock.
+  $SIG{CHLD} = sub {
+    waitpid $child_pid, 0;
+    close $reader;
+    close $writer2;
+    POSIX::close($reader2_fd);
+  };
+
+  zen_logging($reader, $writer2);
   return 1;
 }
 
