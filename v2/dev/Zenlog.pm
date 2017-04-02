@@ -853,7 +853,7 @@ sub start() {
     POSIX::close($writer2_fd);
 
     my $start_command = $ZENLOG_START_COMMAND;
-    my @command = ("scriptxx",
+    my @command = ("script",
         "-fqc",
         "export ZENLOG_TTY=\$(tty);"
         . "export ZENLOG_SHELL_PID=\$\$;"
@@ -863,7 +863,6 @@ sub start() {
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", @command), "\n");
     if (!exec(@command)) {
-      kill 'INT', getppid;
       warn "$0: failed to start script: $!\n";
       warn "Starting /bin/sh instead.\n";
       exec("/bin/sh -l");
