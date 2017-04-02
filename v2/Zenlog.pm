@@ -1,6 +1,7 @@
 package Zenlog;
 
 use strict;
+use warnings;
 use Cwd qw();
 use File::Basename qw(dirname);
 use POSIX;
@@ -845,12 +846,14 @@ sub start() {
   my $child_pid;
   if (($child_pid = fork()) == 0) {
     # Child
+    $SIG{__DIE__} = 'DEFAULT';
+
     POSIX::close($reader_fd);
     POSIX::close($reader2_fd);
     POSIX::close($writer2_fd);
 
     my $start_command = $ZENLOG_START_COMMAND;
-    my @command = ("script",
+    my @command = ("scriptxx",
         "-fqc",
         "export ZENLOG_TTY=\$(tty);"
         . "export ZENLOG_SHELL_PID=\$\$;"
@@ -860,7 +863,7 @@ sub start() {
         "/proc/self/fd/$writer_fd");
     debug("Starting: ", join(" ", @command), "\n");
     if (!exec(@command)) {
-      # kill 'INT', getppid;
+      kill 'INT', getppid;
       warn "$0: failed to start script: $!\n";
       warn "Starting /bin/sh instead.\n";
       exec("/bin/sh -l");

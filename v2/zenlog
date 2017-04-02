@@ -1,5 +1,14 @@
 #!/usr/bin/perl -w
 
+# Failsafe.
+BEGIN {
+  $SIG{__DIE__} = sub {
+    print STDERR "$@";
+    print STDERR "\nzenlog: unable to start; starting /bin/sh instead.\n";
+    exec "/bin/sh";
+  };
+}
+
 use strict;
 use FindBin;
 use lib "$FindBin::RealBin";
