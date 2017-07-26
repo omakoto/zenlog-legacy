@@ -553,6 +553,8 @@ sub start_log(@) {
     while ($single_command =~ s!^${ZENLOG_PREFIX_COMMANDS}\s+!!o) { #!
     }
 
+    next if $single_command eq "";
+
     # Get the first token, which is the command.
     my $exe = (split(/\s+/, $single_command, 2))[0];
 
