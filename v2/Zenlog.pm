@@ -119,10 +119,11 @@ Other subcommands:
         | zenlog write-to-logger
 
 
-  - zenlog purge-log [-y] -p DAYS
+  - zenlog purge-log [-y] [-b] -p DAYS
     Purge logs older than N days and exit.
 
     Options:
+      -b:   Run in the background.
       -y:   Skip confirmation.
 
   - zenlog free-space

@@ -8,7 +8,7 @@ usage() {
 
   Zenlog purge-log: Purge old log files.
 
-  Usage:  zenlog purge-log -p DAYS [-P for dry run] [-y to force run]
+  Usage:  zenlog purge-log -p DAYS [-P for dry run] [-y to force run] [-b for background]
 
 EOF
   exit 1
@@ -18,12 +18,14 @@ EOF
 purge_days=-1
 purge_yes=0
 purge_delete_command="-delete"
+background=0
 
-while getopts "p:Py" opt; do
+while getopts "bp:Py" opt; do
   case "$opt" in
     p) purge_days="$OPTARG" ;;
     P) purge_delete_command="-print" ;;
     y) purge_yes=1 ;;
+    b) background=1 ;;
     *) usage;
   esac
 done
@@ -39,13 +41,21 @@ if ! (( $purge_yes )) ; then
   [[ "$res" == "y" || "$res" == "Y" ]] || exit 1
 fi
 
-# First, remove old log files.
-find "$ZENLOG_DIR/" -mindepth 1 \( -type f -o -type l \) \
-    -ctime +$(( $purge_days - 1 )) $purge_delete_command || true
+purge() {
+  # First, remove old log files.
+  find "$ZENLOG_DIR/" -mindepth 1 \( -type f -o -type l \) \
+      -ctime +$(( $purge_days - 1 )) $purge_delete_command || true
 
-# Remove broken links.
-find "$ZENLOG_DIR/" -xtype l -delete || true
+  # Remove broken links.
+  find "$ZENLOG_DIR/" -xtype l -delete || true
 
-# Then, remove all empty directories.
-find "$ZENLOG_DIR/" -mindepth 1 -type d -print0 | sort -rz | xargs -0 rmdir 2>/dev/null || true
+  # Then, remove all empty directories.
+  find "$ZENLOG_DIR/" -mindepth 1 -type d -print0 | sort -rz | xargs -0 rmdir 2>/dev/null || true
+}
 
+if (( $background )) ; then
+  purge &
+else
+  purge
+fi
+exit 0
