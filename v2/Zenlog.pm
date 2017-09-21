@@ -378,6 +378,17 @@ sub extract_comment($) {
   return "";
 }
 
+sub extract_tag($) {
+  my ($str) = @_;
+
+  my $tag = extract_comment($str);
+
+  $tag =~ s! \s+ $!!xg;
+  $tag =~ s! [ / \s ]+ !_!xg; # Don't include space and slashes.
+
+  return $tag;
+}
+
 #=====================================================================
 # Log file creation.  Called by start-command in the shell side.
 #=====================================================================
@@ -402,10 +413,6 @@ sub create_prev_links($$$) {
 # Create symlinks.
 sub create_links($$$$) {
   my ($parent_dir_name, $dir_name, $san_name, $raw_name) = @_;
-
-  # Normalize the directory name.
-  $dir_name =~ s! \s+ $!!xg;
-  $dir_name =~ s! [ / \s ]+ !_!xg; # Don't include space and slashes.
 
   # Avoid typical errors... Don't create if the directory name would
   # be "." or "..";
@@ -435,14 +442,16 @@ sub create_links($$$$) {
 
 # Create a new pair of RAW / SAN files and write the command line,
 # and [omitted] marker if needed.
-sub create_log($$) {
-  my ($command, $omitted) = @_;
+sub create_log($$$) {
+  my ($command, $omitted, $tag) = @_;
+
+  $tag = "-$tag" if $tag ne "";
 
   my $t = time;
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d.log',
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s.log',
       $ZENLOG_DIR,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
-      ($t - int($t)) * 1000, $ZENLOG_PID);
+      ($t - int($t)) * 1000, $ZENLOG_PID, $tag);
   $raw_name =~ s!/+!/!g;
   my $san_name = $raw_name =~ s!/RAW/!/SAN/!r; #!
 
@@ -536,6 +545,8 @@ sub start_log(@) {
     return 1;
   }
 
+  my $tag = extract_tag($command);
+
   # If the line starts with "184", then don't log.
   my $omit = ($command =~ m!^ [\s\(]* 184 \s+ !x) ? 1 : 0;
 
@@ -573,7 +584,7 @@ sub start_log(@) {
 
   # Note even if omitting, we still create the log files.
   # This is to make sure "zenlog last-history" always returns something sane.
-  my ($san_name, $raw_name) = create_log($command, $omit);
+  my ($san_name, $raw_name) = create_log($command, $omit, $tag);
 
   return 1 if $omit;
 
@@ -585,7 +596,6 @@ sub start_log(@) {
     create_links("cmds", $exe, $san_name, $raw_name);
   }
 
-  my $tag = extract_comment($command);
   create_links("tags", $tag, $san_name, $raw_name) if $tag;
 
   return 1;
