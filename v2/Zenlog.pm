@@ -378,15 +378,18 @@ sub extract_comment($) {
   return "";
 }
 
+sub filename_safe($) {
+  my ($str) = @_;
+
+  $str =~ s! \s+ $!!xg;
+  $str =~ s! [ \s \/ \' \" \| \[ \] \\ \! \@ \$ \& \* \( \) \? \< \> \{ \} ]+ !_!xg; # Don't include special chatacters.
+  return $str
+}
+
 sub extract_tag($) {
   my ($str) = @_;
 
-  my $tag = extract_comment($str);
-
-  $tag =~ s! \s+ $!!xg;
-  $tag =~ s! [ / \s ]+ !_!xg; # Don't include space and slashes.
-
-  return $tag;
+  return filename_safe(extract_comment($str));
 }
 
 #=====================================================================
@@ -442,16 +445,20 @@ sub create_links($$$$) {
 
 # Create a new pair of RAW / SAN files and write the command line,
 # and [omitted] marker if needed.
-sub create_log($$$) {
-  my ($command, $omitted, $tag) = @_;
+sub create_log($$$@) {
+  my ($command, $omitted, $tag, @command_line) = @_;
 
   $tag = "-$tag" if $tag ne "";
 
+  my $command_str = filename_safe(join("_", @command_line));
+
   my $t = time;
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s.log',
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s-%s.log',
       $ZENLOG_DIR,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
-      ($t - int($t)) * 1000, $ZENLOG_PID, $tag);
+      ($t - int($t)) * 1000, $ZENLOG_PID,
+      $tag,
+      substr($command_str, 0, 32));
   $raw_name =~ s!/+!/!g;
   my $san_name = $raw_name =~ s!/RAW/!/SAN/!r; #!
 
@@ -584,7 +591,7 @@ sub start_log(@) {
 
   # Note even if omitting, we still create the log files.
   # This is to make sure "zenlog last-history" always returns something sane.
-  my ($san_name, $raw_name) = create_log($command, $omit, $tag);
+  my ($san_name, $raw_name) = create_log($command, $omit, $tag, @command_line);
 
   return 1 if $omit;
 
