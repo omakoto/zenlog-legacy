@@ -448,16 +448,17 @@ sub create_links($$$$) {
 sub create_log($$$@) {
   my ($command, $omitted, $tag, @command_line_list) = @_;
 
-  $tag = ":T:$tag" if $tag ne "";
+  $tag = "_+$tag" if $tag ne "";
 
   # Add command line to the log filename.
   # Tag is already in the filename, so just cut everything
   # after #.
   my $command_line = join(" ", @command_line_list) =~ s/\s+\#.*$//r; #/
+  $command_line =~ s!^ [^\s]* \/!!x; # Remove the path from the first token.
   my $command_str = filename_safe($command_line);
 
   my $t = time;
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s_:C:%s.log',
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s_:%s.log',
       $ZENLOG_DIR,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
       ($t - int($t)) * 1000, $ZENLOG_PID,
