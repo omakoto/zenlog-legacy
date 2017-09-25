@@ -458,7 +458,7 @@ sub create_log($$$@) {
   my $command_str = filename_safe($command_line);
 
   my $t = time;
-  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s_:%s.log',
+  my $raw_name = sprintf('%s/RAW/%s.%03d-%05d%s_+%s.log',
       $ZENLOG_DIR,
       strftime('%Y/%m/%d/%H-%M-%S', localtime($t)),
       ($t - int($t)) * 1000, $ZENLOG_PID,
