@@ -6,21 +6,21 @@ require 'pp'
 require_relative 'shellhelper'
 
 ZENLOG_PREFIX = 'ZENLOG4'
-ZENLOG_ALWAYS_184_COMMANDS = "#{ZENLOG_PREFIX}_ALWAYS_184_COMMANDS"
-ZENLOG_COMMAND_IN = "#{ZENLOG_PREFIX}_COMMAND_IN"
-ZENLOG_DEBUG = "#{ZENLOG_PREFIX}_DEBUG"
-ZENLOG_DIR = "#{ZENLOG_PREFIX}_DIR"
-ZENLOG_LOGGER_OUT = "#{ZENLOG_PREFIX}_LOGGER_OUT"
-ZENLOG_OUTER_TTY = "#{ZENLOG_PREFIX}_OUTER_TTY"
-ZENLOG_PID = "#{ZENLOG_PREFIX}_PID"
-ZENLOG_PREFIX_COMMANDS = "#{ZENLOG_PREFIX}_PREFIX_COMMANDS"
-ZENLOG_SHELL_PID = "#{ZENLOG_PREFIX}_SHELL_PID"
-ZENLOG_START_COMMAND = "#{ZENLOG_PREFIX}_START_COMMAND"
-ZENLOG_TTY = "#{ZENLOG_PREFIX}_TTY"
+ZENLOG_ALWAYS_NO_LOG_COMMANDS = ZENLOG_PREFIX + '_ALWAYS_NO_LOG_COMMANDS'
+ZENLOG_COMMAND_IN = ZENLOG_PREFIX + '_COMMAND_IN'
+ZENLOG_DEBUG = ZENLOG_PREFIX + '_DEBUG'
+ZENLOG_DIR = ZENLOG_PREFIX + '_DIR'
+ZENLOG_LOGGER_OUT = ZENLOG_PREFIX + '_LOGGER_OUT'
+ZENLOG_OUTER_TTY = ZENLOG_PREFIX + '_OUTER_TTY'
+ZENLOG_PID = ZENLOG_PREFIX + '_PID'
+ZENLOG_PREFIX_COMMANDS = ZENLOG_PREFIX + '_PREFIX_COMMANDS'
+ZENLOG_SHELL_PID = ZENLOG_PREFIX + '_SHELL_PID'
+ZENLOG_START_COMMAND = ZENLOG_PREFIX + '_START_COMMAND'
+ZENLOG_TTY = ZENLOG_PREFIX + '_TTY'
 
-ZENLOG_RC = "#{ZENLOG_PREFIX}_RC"
+ZENLOG_RC = ZENLOG_PREFIX + '_RC'
 
-RC_FILE = ENV[ZENLOG_RC] || "#{Dir.home()}/.zenlogrc.rb"
+RC_FILE = ENV[ZENLOG_RC] || Dir.home() + '/.zenlogrc.rb'
 
 DEBUG = true #ENV[ZENLOG_DEBUG] == "1"
 
@@ -28,11 +28,11 @@ DEBUG = true #ENV[ZENLOG_DEBUG] == "1"
 # Core functions.
 #-----------------------------------------------------------
 
-$is_logger = false
+$is_logger = false # Just to change the debug log color...
 
 module ZenCore
   def say(*args, &block)
-    message = args.join("") + (block ? block.call() : "")
+    message = args.join('') + (block ? block.call() : '')
     $stdout.print message.gsub(/\r*\n/, "\r\n") # Replace LFs with CRLFs # TODO Do it conditionally
   end
 
@@ -62,7 +62,7 @@ module ZenCore
     # Otherwise, just ask the ps command...
     pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null)
     pstty.chomp!
-    tty = "/dev/" + pstty
+    tty = '/dev/' + pstty
     return File.exist?(tty) ? tty : nil
   end
 
@@ -81,7 +81,7 @@ module ZenCore
     str.gsub!(%r[ \s* \x0d ]x, "\n")       # Replace orphan CRs with LFs.
 
     # Also replace ^H's.
-    str.gsub!(%r[ \x08 ]x, "^H");
+    str.gsub!(%r[ \x08 ]x, '^H');
     return str;
   end
 
@@ -93,10 +93,10 @@ include ZenCore
 # Zenlog built-in commands.
 #-----------------------------------------------------------
 module BuiltIns
-  COMMAND_MARKER = "\x01\x04\x06\x07zenlog:"
-  COMMAND_START_MARKER = COMMAND_MARKER + "START_COMMAND:"
-  STOP_LOG_MARKER = COMMAND_MARKER + "STOP_LOG:"
-  STOP_LOG_ACK_MARKER = COMMAND_MARKER + "STOP_LOG_ACK:"
+  COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+  COMMAND_START_MARKER = COMMAND_MARKER + 'START_COMMAND:'
+  STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
+  STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
 
   def in_zenlog
     tty = get_tty
@@ -104,15 +104,16 @@ module BuiltIns
   end
 
   def fail_if_in_zenlog
-    die "already in zenlog." if in_zenlog
+    die 'already in zenlog.' if in_zenlog
     return true
   end
 
   def fail_unless_in_zenlog
-    die "not in zenlog." unless in_zenlog
+    die 'not in zenlog.' unless in_zenlog
     return true
   end
 
+  # Tell zenlog to start logging for a command line.
   def start_command(*command_line_words)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
 
@@ -128,6 +129,7 @@ module BuiltIns
     return true
   end
 
+  # Tell zenlog to stop logging the current command.
   def stop_log
     debug "[Stop log]\n"
     if in_zenlog
@@ -148,6 +150,20 @@ module BuiltIns
         end
       end
     end
+  end
+
+  # Print the outer TTY device file.
+  def outer_tty
+    if in_zenlog
+      puts ENV[ZENLOG_OUTER_TTY]
+      return true
+    else
+      return false
+    end
+  end
+
+  def write_to_outer
+    pipe_stdin_to_file ENV[ZENLOG_OUTER_TTY], cr_needed:false
   end
 
   # Called by the logger to see if an incoming line is of a command start
@@ -177,22 +193,23 @@ module BuiltIns
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
   end
 
-  # # Read from STDIN, and write to path, if in-zenlog.
-  # # Otherwise just write to STDOUT.
-  # def pipe_stdin_to_file(path, cr_needed)
-  #   out = $stdout
-  #   if in_zenlog
-  #     out = open(path, "w") # TODO Error handling
-  #   else
-  #     cr_needed = false
-  #   end
+  # Read from STDIN, and write to path, if in-zenlog.
+  # Otherwise just write to STDOUT.
+  def pipe_stdin_to_file(path, cr_needed)
+    out = $stdout
+    if in_zenlog
+      out = open(path, "w") # TODO Error handling
+    else
+      cr_needed = false
+    end
 
-  #   $stdin.each_line do |line|
-  #     line.chomp!
-  #     $out.print(line, cr_needed ? "\r\n" : "\n")
-  #   end
-  #   return true
-  # end
+    newline = cr_needed ? "\r\n" : "\n"
+    $stdin.each_line do |line|
+      line.chomp!
+      out.print(line, newline)
+    end
+    return true
+  end
 
   # Return a lambda that calls built-in command, or nil of the given
   # command doesn't exist.
@@ -201,23 +218,27 @@ module BuiltIns
     case command
     when "in_zenlog"
       return ->(*args){in_zenlog}
+
     when "fail_if_in_zenlog"
       return ->(*args){fail_if_in_zenlog}
+
     when "fail_unless_in_zenlog"
       return ->(*args){fail_unless_in_zenlog}
+
     when "start_command"
       return ->(*args){start_command args}
+
     when "stop_log"
       return ->(*args){stop_log}
+
+    when "stop_log"
+      return ->(*args){stop_log}
+
     when "outer_tty"
-      return ->(*args) {
-        if in_zenlog
-          puts ENV[ZENLOG_OUTER_TTY]
-          return true
-        else
-          return false
-        end
-      }
+      return ->(*args) {outer_tty}
+
+    when "write_to_outer"
+      return ->(*args) {write_to_outer}
     end
     return nil
   end
@@ -242,11 +263,11 @@ class ZenLogger
     @start_command = ENV[ZENLOG_START_COMMAND] || DEFAULT_ZENLOG_START_COMMAND
     @prefix_commands = ENV[ZENLOG_PREFIX_COMMANDS] || \
         DEFAULT_ZENLOG_PREFIX_COMMANDS
-    @always184commands = ENV[ZENLOG_ALWAYS_184_COMMANDS] || \
-        DEFAULT_ZENLOG_ALWAYS_184_COMMANDS
+    @always_no_log_commands = ENV[ZENLOG_ALWAYS_NO_LOG_COMMANDS] || \
+        DEFAULT_ZENLOG_ALWAYS_NO_LOG_COMMANDS
 
     @prefix_commands_re = Regexp.compile('^' + @prefix_commands + '$')
-    @always184commands_re = Regexp.compile('^' + @always184commands + '$')
+    @always_no_log_commands_re = Regexp.compile('^' + @always_no_log_commands + '$')
   end
 
   def export_env()
@@ -313,8 +334,6 @@ class ZenLogger
       @command_in.close()
 
       Signal.trap("CHLD") do
-        # This may deadlock.
-        #debug {"Received SIGCHLD\n"}
         @logger_in.close()
         @command_out.close()
       end
@@ -327,18 +346,61 @@ class ZenLogger
     return true
   end
 
+  # Start logging for a command.
+  # Open the raw/san streams, create symlinks, etc.
+  def start_logging(command_line)
+    tokens = shsplit(command_line)
+
+    command_names = []
+    comment = nil
+
+    nolog_detected = false
+
+    if tokens.length > 0
+      # If the last token starts with "#", it's a comment.
+      last = tokens[-1]
+      if last =~ /^\#/
+        # Compress consecutive spaces into one.
+        comment = last.sub(/^#\s*/, '').sub(/\s\s+/, " ")
+      end
+
+      command_start = true
+      tokens.each do |token|
+        # Extract the first token as a command name.
+        if command_start && !is_shell_op(token) && token !~ @prefix_commands_re
+          command_names << token
+          command_start = false
+
+          nolog_detected = true if token =~ @always_no_log_commands_re
+        end
+
+        command_start |= (token =~ /^(?: \| | \|\| | \&\& | \; )$/x)
+      end
+      debug {"Commands=#{command_names.inspect}#{nolog_detected ? " *nolog" : ""}" +
+          ", comment=#{comment}\n"}
+    end
+  end
+
+  def stop_logging()
+  end
+
   def logger_main_loop
     @logger_in.each_line do |line|
       command = BuiltIns.match_command_start(line)
       if command != nil
         debug {"Command started: \"#{command}\"\n"}
+
+        start_logging(command)
         next
       end
 
       last_line, fingerprint = BuiltIns.match_stop_log(line)
       if fingerprint
         debug {"Command finished: #{fingerprint}\n"}
+
+        stop_logging
         @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
+        next
       end
     end
   end
@@ -392,13 +454,11 @@ class Main
       exit ZenLogger.new(rc_file:RC_FILE).start ? 0 : 1
     end
 
-    # Run a subcommand.
+    # Otherwise, if there's more than one argument, run a subcommand.
     subcommand = args.shift
 
-    # Builtin command?
     maybe_exec_builtin_command subcommand, args
 
-    # External command?
     maybe_exec_external_command subcommand, args
 
     die "subcommand '#{subcommand}' not found."
