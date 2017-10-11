@@ -1,0 +1,9 @@
+#!/bin/bash
+
+medir="${0%/*}"
+
+export ZENLOG4_RC="$medir/zenlogrc.rb"
+export ZENLOG4_START_COMMAND="/bin/bash --noprofile --rcfile $medir/bashrc"
+
+export PATH="$medir/..:$PATH"
+zenlog4

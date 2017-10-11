@@ -3,23 +3,33 @@ $VERBOSE = true
 
 require 'ttyname'
 require 'pp'
+require_relative 'shellhelper'
 
-ZENLOG_ALWAYS_184_COMMANDS = 'ZENLOG_ALWAYS_184_COMMANDS'
-ZENLOG_COMMAND_OUT = 'ZENLOG_COMMAND_OUT'
-ZENLOG_DEBUG = 'ZENLOG_DEBUG'
-ZENLOG_DIR = 'ZENLOG_DIR'
-ZENLOG_LOGGER_OUT = 'ZENLOG_LOGGER_OUT'
-ZENLOG_OUTER_TTY = 'ZENLOG_OUTER_TTY'
-ZENLOG_PID = 'ZENLOG_PID'
-ZENLOG_PREFIX_COMMANDS = 'ZENLOG_PREFIX_COMMANDS'
-ZENLOG_START_COMMAND = 'ZENLOG_START_COMMAND'
-ZENLOG_TTY = 'ZENLOG_TTY'
+ZENLOG_PREFIX = 'ZENLOG4'
+ZENLOG_ALWAYS_184_COMMANDS = "#{ZENLOG_PREFIX}_ALWAYS_184_COMMANDS"
+ZENLOG_COMMAND_IN = "#{ZENLOG_PREFIX}_COMMAND_IN"
+ZENLOG_DEBUG = "#{ZENLOG_PREFIX}_DEBUG"
+ZENLOG_DIR = "#{ZENLOG_PREFIX}_DIR"
+ZENLOG_LOGGER_OUT = "#{ZENLOG_PREFIX}_LOGGER_OUT"
+ZENLOG_OUTER_TTY = "#{ZENLOG_PREFIX}_OUTER_TTY"
+ZENLOG_PID = "#{ZENLOG_PREFIX}_PID"
+ZENLOG_PREFIX_COMMANDS = "#{ZENLOG_PREFIX}_PREFIX_COMMANDS"
+ZENLOG_SHELL_PID = "#{ZENLOG_PREFIX}_SHELL_PID"
+ZENLOG_START_COMMAND = "#{ZENLOG_PREFIX}_START_COMMAND"
+ZENLOG_TTY = "#{ZENLOG_PREFIX}_TTY"
+
+ZENLOG_RC = "#{ZENLOG_PREFIX}_RC"
+
+RC_FILE = ENV[ZENLOG_RC] || "#{Dir.home()}/.zenlogrc.rb"
 
 DEBUG = true #ENV[ZENLOG_DEBUG] == "1"
 
 #-----------------------------------------------------------
 # Core functions.
 #-----------------------------------------------------------
+
+$is_logger = false
+
 module ZenCore
   def say(*args, &block)
     message = args.join("") + (block ? block.call() : "")
@@ -29,7 +39,7 @@ module ZenCore
   def debug(*args, &block)
     return false unless DEBUG
 
-    say "\x1b[0m\x1b[31m" # Red
+    say $is_logger ? "\x1b[0m\x1b[32m" : "\x1b[0m\x1b[31m"
     say args, &block
     say "\x1b[0m" # Reset
     return true
@@ -79,169 +89,15 @@ end
 
 include ZenCore
 
-module ShellUtils
-  #-----------------------------------------------------------
-  # Shell-escape a single token.
-  #-----------------------------------------------------------
-  def shescape(arg)
-    if arg =~ /[^a-zA-Z0-9\-\.\_\/\:\+\@]/
-        return "'" + arg.gsub(/'/, "'\\\\''") + "'"
-    else
-        return arg;
-    end
-  end
-
-  #-----------------------------------------------------------
-  # Shell-unescape a single token.
-  #-----------------------------------------------------------
-  def unshescape(arg)
-    if arg !~ /[\'\"\\]/
-      return arg
-    end
-
-    ret = ""
-    pos = 0
-    while pos < arg.length
-      ch = arg[pos]
-
-      case
-      when ch == "'"
-        pos += 1
-        while pos < arg.length
-          ch = arg[pos]
-          pos += 1
-          if ch == "'"
-            break
-          end
-          ret += ch
-        end
-      when ch == '"'
-        pos += 1
-        while pos < arg.length
-          ch = arg[pos]
-          pos += 1
-          if ch == '"'
-            break
-          elsif ch == '\\'
-            if pos < arg.length
-             ret += arg[pos]
-            end
-            pos += 1
-          end
-          ret += ch
-        end
-      when ch == '\\'
-        pos += 1
-        if pos < arg.length
-          ret += arg[pos]
-          pos += 1
-        end
-      when (ch == '$') && (arg[pos+1] == "'") # C-like string
-        pos += 2
-        ret, pos = _unescape_clike(arg, ret, pos)
-      else
-        ret += ch
-        pos += 1
-      end
-    end
-
-    return ret
-  end
-
-  def _unescape_clike(arg, ret, pos)
-    while pos < arg.length
-      ch = arg[pos]
-      pos += 1
-      case ch
-      when "'"
-        break
-      when "\\"
-        ch = arg[pos]
-        pos += 1
-        case
-        when ch == '"';    ret += '"'
-        when ch == "'";    ret += "'"
-        when ch == '\\';   ret += '\\'
-        when ch == 'a';    ret += "\a"
-        when ch == 'b';    ret += "\b"
-        when ch == 'e';    ret += "\e"
-        when ch == 'E';    ret += "\e"
-        when ch == 'f';    ret += "\f"
-        when ch == 'n';    ret += "\n"
-        when ch == 'r';    ret += "\r"
-        when ch == 't';    ret += "\t"
-        when ch == 'v';    ret += "\v"
-        when ch == 'c'
-          ch2 = arg[pos]&.downcase&.ord
-          pos += 1
-          code = ch2 ? (ch2 - 'a'.ord + 1) : 0
-          ret << code.chr
-        when (ch == 'x') && /\G([0-9a-fA-F]{1,2})/.match(arg, pos)
-          code = $1
-          pos += $1.length
-          ret << code.to_i(16).chr("utf-8")
-        when (ch == 'u') && /\G([0-9a-fA-F]{1,4})/.match(arg, pos)
-          code = $1
-          pos += $1.length
-          ret << code.to_i(16).chr("utf-8")
-        when (ch == 'U') && /\G([0-9a-fA-F]{1,8})/.match(arg, pos)
-          code = $1
-          pos += $1.length
-          ret << code.to_i(16).chr("utf-8")
-        when /\G([0-7]{1,3})/.match(arg, pos - 1)
-          code = $1
-          pos += $1.length - 1
-          ret << code.to_i(8).chr("utf-8")
-        else
-          ret << "\\"
-          ret << ch
-        end
-      else
-        ret << ch
-      end
-    end
-    return [ret, pos]
-  end
-
-  # Split into words like shell.
-  # (doesn't support ${...}, etc.)
-  def shsplit(arg)
-    ret = []
-    current = ""
-    arg.scan(%r[
-        (?:
-        \s+                      # Whitespace
-        | \' [^\']* \'?          # Single quote
-        | \$\'(?:                # C-like string
-            \\[\"\'\\abeEfnrtv]      # Special character
-            | \\c.                   # Control character
-            | \\x[0-9a-fA-F]{0,2}
-            | \\u[0-9a-fA-F]{0,4}
-            | \\U[0-9a-fA-F]{0,8}
-            | [^\']
-            )* \'?
-        | \" (?: \\. | [^\"] )* \"? # Double-quote
-        | .
-        )
-        ]x).each do |token|
-      if token =~ /^\s/
-        (ret << current) if current != ""
-        current = ""
-      else
-        current += token
-      end
-    end
-    (ret << current) if current != ""
-    return ret
-  end
-end
-
-include ShellUtils
-
 #-----------------------------------------------------------
 # Zenlog built-in commands.
 #-----------------------------------------------------------
 module BuiltIns
+  COMMAND_MARKER = "\x01\x04\x06\x07zenlog:"
+  COMMAND_START_MARKER = COMMAND_MARKER + "START_COMMAND:"
+  STOP_LOG_MARKER = COMMAND_MARKER + "STOP_LOG:"
+  STOP_LOG_ACK_MARKER = COMMAND_MARKER + "STOP_LOG_ACK:"
+
   def in_zenlog
     tty = get_tty
     return (tty != nil) && (ENV[ZENLOG_TTY] == get_tty)
@@ -257,22 +113,86 @@ module BuiltIns
     return true
   end
 
-  # Read from STDIN, and write to path, if in-zenlog.
-  # Otherwise just write to STDOUT.
-  def pipe_stdin_to_file(path, cr_needed)
-    out = $stdout
-    if in_zenlog
-      out = open(path, "w") # TODO Error handling
-    else
-      cr_needed = false
-    end
+  def start_command(*command_line_words)
+    debug {"[Command start: #{command_line_words.join(" ")}]\n"}
 
-    $stdin.each_line do |line|
-      line.chomp!
-      $out.print(line, cr_needed ? "\r\n" : "\n")
+    if in_zenlog
+      # Send "command start" to the logger directly.
+      open ENV[ZENLOG_LOGGER_OUT], "w" do |out|
+        out.print(
+            COMMAND_START_MARKER,
+            command_line_words.join(" ").gsub(/\r*\n/, " "),
+            "\n")
+      end
     end
     return true
   end
+
+  def stop_log
+    debug "[Stop log]\n"
+    if in_zenlog
+      # Send "stop log" to the logger directly.
+      fingerprint = Time.now.to_f.to_s
+      open ENV[ZENLOG_LOGGER_OUT], "w" do |out|
+        out.print(STOP_LOG_MARKER, fingerprint, "\n")
+      end
+
+      # Wait for ack to make sure the log file was actually written.
+      ack = get_stop_log_ack(fingerprint)
+      open ENV[ZENLOG_COMMAND_IN], "r" do |i|
+        i.each_line do |line|
+          if line == ack
+            debug "[Ack received]\n"
+            break
+          end
+        end
+      end
+    end
+  end
+
+  # Called by the logger to see if an incoming line is of a command start
+  # marker, and if so, returns the command line.
+  def match_command_start(in_line)
+    if (in_line =~ /#{Regexp.quote COMMAND_START_MARKER}(.*)/o)
+      return $1
+    else
+      return nil
+    end
+  end
+
+  # Called by the logger to see if an incoming line is of a stop log
+  # marker, and if so, returns the last log line (everything before the marker,
+  # in case the command last output line doesn't end with a NL) and a
+  # fingerprint, which needs to be sent back with an ACK.
+  def match_stop_log(in_line)
+    if (in_line =~ /(.*?)#{Regexp.quote STOP_LOG_MARKER}(.*)/o)
+      return $1, $2
+    else
+      return nil
+    end
+  end
+
+  # Create an ACK marker with a fingerprint.
+  def get_stop_log_ack(stop_log_fingerprint)
+    return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
+  end
+
+  # # Read from STDIN, and write to path, if in-zenlog.
+  # # Otherwise just write to STDOUT.
+  # def pipe_stdin_to_file(path, cr_needed)
+  #   out = $stdout
+  #   if in_zenlog
+  #     out = open(path, "w") # TODO Error handling
+  #   else
+  #     cr_needed = false
+  #   end
+
+  #   $stdin.each_line do |line|
+  #     line.chomp!
+  #     $out.print(line, cr_needed ? "\r\n" : "\n")
+  #   end
+  #   return true
+  # end
 
   # Return a lambda that calls built-in command, or nil of the given
   # command doesn't exist.
@@ -285,6 +205,10 @@ module BuiltIns
       return ->(*args){fail_if_in_zenlog}
     when "fail_unless_in_zenlog"
       return ->(*args){fail_unless_in_zenlog}
+    when "start_command"
+      return ->(*args){start_command args}
+    when "stop_log"
+      return ->(*args){stop_log}
     when "outer_tty"
       return ->(*args) {
         if in_zenlog
@@ -329,11 +253,10 @@ class ZenLogger
     ENV[ZENLOG_PID] = $$.to_s
     ENV[ZENLOG_DIR] = @log_dir
     ENV[ZENLOG_OUTER_TTY] = get_tty
-    ENV[ZENLOG_COMMAND_OUT] = "/proc/#{$$}/fd/#{@command_out.to_i}"
-    ENV[ZENLOG_LOGGER_OUT] = "/proc/#{$$}/fd/#{@logger_out.to_i}"
   end
 
   FD_LOGGER_OUT = 62
+  FD_COMMAND_IN = 63
 
   def init()
     init_config
@@ -348,7 +271,7 @@ class ZenLogger
     debug{"Pipe1: [#{@logger_out.inspect}] -> [#{@logger_in.inspect}]\n"}
     debug{"Pipe2: [#{@command_out.inspect}] -> [#{@command_in.inspect}]\n"}
 
-    spawn("ls", "-l", "/proc/#{$$}/fd") if debug
+    # spawn("ls", "-l", "/proc/#{$$}/fd") if debug
   end
 
   def start()
@@ -360,16 +283,23 @@ class ZenLogger
 
     if pid == nil
       # Child
-      debug {"Child\n"}
+      debug {"Child: PID=#{$$}\n"}
+
+      logger_out_name = "/proc/#{$$}/fd/#{FD_LOGGER_OUT}"
+      command_in_name = "/proc/#{$$}/fd/#{FD_COMMAND_IN}"
+
       command = [
           "script",
           "-fqc",
-          "export ZENLOG_SHELL_PID=#{$$};" +
-          "export ZENLOG_TTY=$(tty);" +
+          "export #{ZENLOG_SHELL_PID}=#{$$};" +
+          "export #{ZENLOG_LOGGER_OUT}=#{shescape logger_out_name};" +
+          "export #{ZENLOG_COMMAND_IN}=#{shescape command_in_name};" +
+          "export #{ZENLOG_TTY}=$(tty);" +
           "exec #{@start_command}", # TODO Shescape?
-          "/proc/self/fd/#{FD_LOGGER_OUT}", FD_LOGGER_OUT=>@logger_out]
-
-      debug {"Starting: #{command}"}
+          logger_out_name,
+          FD_LOGGER_OUT=>@logger_out,
+          FD_COMMAND_IN=>@command_in]
+      debug {"Starting: #{command}\n"}
       exec *command
 
       say "Failed to execute #{@start_command}: Starting bash...\n"
@@ -377,21 +307,40 @@ class ZenLogger
       exit 127
     else
       # Parent
+      $is_logger = true
       debug {"Parent\n"}
       @logger_out.close()
+      @command_in.close()
 
       Signal.trap("CHLD") do
-        debug {"Received SIGCHLD\n"}
+        # This may deadlock.
+        #debug {"Received SIGCHLD\n"}
         @logger_in.close()
-        @command_in.close()
         @command_out.close()
       end
 
-      @logger_in.each_line do |line|
-      end
+      logger_main_loop
+
+      debug {"Logger process finishing...\n"}
       exit 0
     end
     return true
+  end
+
+  def logger_main_loop
+    @logger_in.each_line do |line|
+      command = BuiltIns.match_command_start(line)
+      if command != nil
+        debug {"Command started: \"#{command}\"\n"}
+        next
+      end
+
+      last_line, fingerprint = BuiltIns.match_stop_log(line)
+      if fingerprint
+        debug {"Command finished: #{fingerprint}\n"}
+        @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
+      end
+    end
   end
 end
 
@@ -440,7 +389,7 @@ class Main
     # Start a new zenlog session?
     if args.length == 0
       fail_if_in_zenlog
-      exit ZenLogger.new(rc_file:"#{Dir.home()}/.zenlogrc.rb").start ? 0 : 1
+      exit ZenLogger.new(rc_file:RC_FILE).start ? 0 : 1
     end
 
     # Run a subcommand.

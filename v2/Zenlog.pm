@@ -3,11 +3,13 @@ package Zenlog;
 
 # Failsafe.
 BEGIN {
-  $SIG{__DIE__} = sub {
-    print STDERR "$@";
-    print STDERR "\nzenlog: unable to start; starting /bin/sh instead.\n";
-    exec "/bin/sh";
-  };
+  if (@ARGV == 0) {
+    $SIG{__DIE__} = sub {
+      print STDERR "$@";
+      print STDERR "\nzenlog: unable to start; starting /bin/sh instead.\n";
+      exec "/bin/sh";
+    };
+  }
 }
 
 use strict;
