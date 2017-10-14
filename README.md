@@ -149,7 +149,7 @@ If you star Zenlog directory form a terminal application, Zenlog starts before t
 
 ## History
 
-* v0 -- the original version. It evolved from a proof-of-concept script, which is bash-perl hybrid, because I wanted to keep everything in a single file, and I kinda liked the ugliness of the hybrid script. The below script shows the basic structure. ZENLOG_TTY was (and still is) used to check if the current terminal is within Zenlog or not.
+* v0 -- the original version. It evolved from a proof-of-concept script, which was bash-perl hybrid, because I wanted to keep everything in a single file, and I kinda liked the ugliness of the hybrid script. The below script shows the basic structure. ZENLOG_TTY was (and still is) used to check if the current terminal is within Zenlog or not.
 
 ```bash
 #!/bin/bash
@@ -162,10 +162,10 @@ EOF
 ) )
 ```
 
-* v1 -- The hybrid script was getting harder and harder to maintain and was also ugly, so I split it into multiple files. Also subcommands were now extracted to separate files too. v1 still has both the Bash part and the Perl part.
+* v1 -- The hybrid script was getting harder and harder to maintain and was also ugly, so I split it into multiple files. Also subcommands were now extracted to separate files. v1 still had both the Bash part and the Perl part.
 
- * v2 -- Re-wrote in Perl. No more Bash, except in external subcommands.
+ * v2 -- Rewrote in Perl. No more Bash, except in external subcommands.
 
- * v3 -- Original attempt to rewrite in Ruby, but got bored and this didn't happen.
+ * v3 -- Original attempt to rewrite in Ruby, but got bored and it didn't happen.
 
- * v4 -- v2 was still ugly and hard to improve, so finally re-wrote in Ruby. This has a lot better command line parser, for example, which is used to detect command names in a command line. v2's parser was very hacky so it could mis-parse.
+ * v4 -- v2 was still ugly and hard to improve, so finally rewrote in Ruby. This has a lot better command line parser, for example, which is used to detect command names in a command line. v2's parser was very hacky so it could mis-parse.
