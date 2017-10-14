@@ -97,10 +97,9 @@ module ZenCore
 
   # Convert a string into what's safe to use in a filename.
   def filename_safe(str)
-    return nil if str == nil
-    str.gsub!(/\s+/, "")
-    str.gsub!(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
-    return str
+    return "" if str == nil
+    return str.gsub(/\s+/, "") \
+        .gsub(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
   end
 end
 
@@ -504,25 +503,29 @@ class ZenLogger
   end
 
   def start
-    @logger_in.each_line do |line|
-      command = BuiltIns.match_command_start(line)
-      if command != nil
-        debug {"Command started: \"#{command}\"\n"}
+    begin
+      @logger_in.each_line do |line|
+        command = BuiltIns.match_command_start(line)
+        if command != nil
+          debug {"Command started: \"#{command}\"\n"}
 
-        start_logging(command)
-        next
+          start_logging(command)
+          next
+        end
+
+        last_line, fingerprint = BuiltIns.match_stop_log(line)
+        if fingerprint
+          debug {"Command finished: #{fingerprint}\n"}
+
+          stop_logging
+          @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
+          next
+        end
+
+        write_log line
       end
-
-      last_line, fingerprint = BuiltIns.match_stop_log(line)
-      if fingerprint
-        debug {"Command finished: #{fingerprint}\n"}
-
-        stop_logging
-        @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
-        next
-      end
-
-      write_log line
+    rescue IOError
+      # "closed stream" is okay. It's just a broken pipe.
     end
   end
 end
@@ -538,8 +541,10 @@ class ZenStarter
   def init_config()
     require_relative 'zenlog-defaults'
 
-    if File.exist? @rc_file
+    if File.exist?(@rc_file) && !File.zero?(@rc_file)
       debug {"Loading #{@rc_file}...\n"}
+
+      # Somehow "load" doesn't load from /dev/null? So we skip a 0 byte file.
       load @rc_file
     end
 
@@ -656,7 +661,7 @@ class Main
 
     ext_name = "zenlog-" + command.gsub('_', '-')
 
-    [my_path, *(ENV['PATH'].split(":"))].each do |dir|
+    [my_path, *((ENV['PATH'] || "").split(":"))].each do |dir|
       file = dir + "/" + ext_name
       if File.executable? file
         debug {"Found #{file}\n"}

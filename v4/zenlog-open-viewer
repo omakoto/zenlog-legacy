@@ -7,4 +7,4 @@ script_dir="${0%/*}"
 
 file="$1"
 echo "zenlog: Opening '$file' ..."
-${ZENLOG_VIEWER:-$PAGER} "$file"
+"${ZENLOG_VIEWER:-$PAGER}" "$file"

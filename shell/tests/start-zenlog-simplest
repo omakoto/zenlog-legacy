@@ -1,0 +1,10 @@
+#!/bin/bash
+
+script_dir="${0%/*}"
+
+#export ZENLOG_DEBUG=1
+export ZENLOG_DIR=$HOME/zenlog-test
+export ZENLOG_START_COMMAND="bash --noprofile --rcfile $script_dir/../zenlog.bash"
+export ZENLOG_RC=/dev/null
+
+$script_dir/../../current/zenlog
