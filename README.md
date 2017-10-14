@@ -51,12 +51,12 @@ For each command, Zenlog creates two log files. One is called "RAW", which is th
 
 SAN log files have names like this. Basically log filenames contain the timestam, the shortened command line, as well as the comment part in the command line if exists.
 ```
-/home/USER/zenlog/SAN/2017/10/14/13-34-03.589-06327_+_+ls-l.log
+/home/USER/zenlog/SAN/2017/10/14/14-25-10.778-15193_+ls_-l.log
 ```
 
 RAW log files have the exact same filename, except they're stored in the `RAW` directory.
 ```
-/home/USER/zenlog/RAW/2017/10/14/13-34-03.589-06327_+_+ls-l.log
+/home/USER/zenlog/RAW/2017/10/14/14-25-10.778-15193_+ls_-l.log
 ```
 
 To allow easier access to log files, Zenlog creates a lot of symlinks. (The idea came from [Tanlog](https://github.com/shinh/test/blob/master/tanlog.rb))
@@ -97,12 +97,12 @@ You'll get the regular SAN/RAW log files, as well as the following symlinks:
 /home/USER/zenlog/tags/fstab_comments_removed/R
 ```
 
-`zenlog history` shows the most recent SAN log filenames on the current shell:
+`zenlog history` shows the most recent SAN log filenames on the current shell (add `-r` to get RAW names):
 
 ```
-$ zenlog history # Add "-r" to get RAW filenames.
-/home/USER/zenlog/SAN/2017/10/14/13-44-18.749-07884_+fstab_comments_removed_+cat_etc_fstab_sed_^#_d_#_fstab_c.log
-/home/USER/zenlog/SAN/2017/10/14/13-46-16.322-07884_+_+zenlog_history.log
+$ zenlog history
+/home/USER/zenlog/SAN/2017/10/14/14-26-54.320-15193_+fstab_comments_removed_+cat_etc_fstab_sed_^#_d_#_fstab_c.log
+/home/USER/zenlog/SAN/2017/10/14/14-27-26.700-15193_+zenlog_history.log
 ```
 
 ## Subcommands

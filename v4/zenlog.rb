@@ -291,13 +291,13 @@ module BuiltIns
       files = Pathname.glob(dir + "/" + name + "*").map {|x| x.to_s}.reverse
     end
 
-    files.each do |f|
+    files.map {|f|
       if File.symlink? f
-        puts File.readlink(f)
+        File.readlink(f)
       else
-        puts f
+        f
       end
-    end
+    }.map {|f| f.gsub(/\/+/, "/")}.sort.each {|f| puts f}
 
     return true
   end
@@ -440,7 +440,7 @@ class ZenLogger
   end
 
   def create_log_filename(command_line, tag, now)
-    tag_str = "_+" + tag if tag
+    tag_str = "_+" + tag if tag.to_s != ""
     command_str = filename_safe(command_line)[0,32]
 
     return sprintf("%s/#{RAW}/%s-%05d%s_+%s.log",

@@ -14,7 +14,7 @@ ZENLOG_VIEWER=less
 # Install the basic shell helper functions.
 . <("$ZENLOG" sh-helper)
 
-# Stop the current logging every time
+# Stop the current logging before every prompt.
 _prompt_command() {
   "$ZENLOG" stop-log
 }
