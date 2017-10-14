@@ -9,7 +9,7 @@ require_relative 'shellhelper'
 # Constants.
 #-----------------------------------------------------------
 
-ZENLOG_PREFIX = 'ZENLOG4'
+ZENLOG_PREFIX = 'ZENLOG'
 ZENLOG_ALWAYS_NO_LOG_COMMANDS = ZENLOG_PREFIX + '_ALWAYS_NO_LOG_COMMANDS'
 ZENLOG_COMMAND_IN = ZENLOG_PREFIX + '_COMMAND_IN'
 ZENLOG_DEBUG = ZENLOG_PREFIX + '_DEBUG'
@@ -26,7 +26,7 @@ ZENLOG_RC = ZENLOG_PREFIX + '_RC'
 
 RC_FILE = ENV[ZENLOG_RC] || Dir.home() + '/.zenlogrc.rb'
 
-DEBUG = true #ENV[ZENLOG_DEBUG] == "1"
+DEBUG = ENV[ZENLOG_DEBUG] == "1"
 
 #-----------------------------------------------------------
 # Core functions.
@@ -215,21 +215,67 @@ module BuiltIns
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
   end
 
-  # Read from STDIN, and write to path, if in-zenlog.
-  # Otherwise just write to STDOUT.
-  def pipe_stdin_to_file(path, cr_needed)
-    out = $stdout
-    if in_zenlog
-      out = open(path, "w") # TODO Error handling
-    else
-      cr_needed = false
+  def sh_helper
+    print <<~'EOF'
+        # Return sucess when in zenlog.
+        function in_zenlog() {
+          zenlog in-zenlog
+        }
+
+        # Run a command without logging the output.
+        function _zenlog_nolog() {
+          "${@}"
+        }
+        alias 184=_zenlog_nolog
+
+        # Run a command with forcing log, regardless of ZENLOG_ALWAYS_184_COMMANDS.
+        function _zenlog_force_log() {
+          "${@}"
+        }
+        alias 186=_zenlog_force_log
+
+        # Print the current command's command line.  Use with "zenlog start-command".
+        function bash_last_command() {
+          # Use echo to remove newlines.
+          echo $(HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//')
+        }
+
+        EOF
+    return true
+  end
+
+  def ensure_log_dir
+    log_dir = ENV[ZENLOG_DIR]
+    if !log_dir
+      die "#{ZENLOG_DIR} not set."
+    end
+    if !File.directory? log_dir
+      die "#{log_dir} doesn't exist."
     end
 
-    newline = cr_needed ? "\r\n" : "\n"
-    $stdin.each_line do |line|
-      line.chomp!
-      out.print(line, newline)
+    exit 0
+  end
+
+  def history(raw, pid, nth)
+    dir = ENV[ZENLOG_DIR] + "/pids/" + pid.to_s
+    debug {"Log dir: #{dir}\n"}
+    exit false unless File.directory? dir
+    name = raw ? "R" : "P"
+
+    if nth >= 0
+      files = [dir + "/" + name * (nth + 1)]
+    else
+      files = Pathname.glob(dir + "/" + name + "*").map {|x| x.to_s}.reverse
     end
+
+    files.each do |f|
+      if File.symlink? f
+        puts File.readlink(f)
+      else
+        puts f
+      end
+    end
+
     return true
   end
 
@@ -258,6 +304,13 @@ module BuiltIns
 
     when "logger_pipe"
       return ->(*args) {logger_pipe}
+
+    when "sh_helper"
+      return ->(*args) {sh_helper}
+
+    when "ensure_log_dir"
+      return ->(*args) {ensure_log_dir}
+
     end
 
     return nil
@@ -266,6 +319,9 @@ end
 
 include BuiltIns
 
+#-----------------------------------------------------------
+# Sits in the background and writes log.
+#-----------------------------------------------------------
 class ZenLogger
   RAW = 'RAW'
   RAW_LINK = 'R'
@@ -366,21 +422,23 @@ class ZenLogger
         command_str).sub(%r(/+), "/") # compress consecutive /s.
   end
 
-  def open_logfile(filename, type, link_name)
+  def open_logfile(filename)
     FileUtils.mkdir_p(File.dirname(filename))
     out = open(filename, "w")
     return out
   end
 
   def open_log(command_line, command_names, comment, no_log)
+    stop_logging()
+
     tag = filename_safe(comment)
     now = Time.now.getlocal
 
     raw_name = create_log_filename(command_line, tag, now)
     san_name = raw_name.gsub(/#{RAW}/o, SAN)
 
-    @raw = open_logfile(raw_name, RAW, RAW_LINK)
-    @san = open_logfile(san_name, SAN, SAN_LINK)
+    @raw = open_logfile(raw_name)
+    @san = open_logfile(san_name)
 
     [[raw_name, RAW, RAW_LINK], [san_name, SAN, SAN_LINK]].each do |log_name, type, link_name|
       create_prev_links(@log_dir, link_name, log_name)
@@ -441,7 +499,9 @@ class ZenLogger
   end
 end
 
-
+#-----------------------------------------------------------
+# Start a new zenlog session.
+#-----------------------------------------------------------
 class ZenStarter
   def initialize(rc_file:nil)
     @rc_file = rc_file
@@ -540,6 +600,9 @@ class ZenStarter
   end
 end
 
+#-----------------------------------------------------------
+# Entry point.
+#-----------------------------------------------------------
 class Main
   def help()
     print <<~'EOF'
@@ -600,4 +663,6 @@ class Main
   end
 end
 
-Main.new.main(ARGV)
+if __FILE__ == $0
+  Main.new.main(ARGV)
+end

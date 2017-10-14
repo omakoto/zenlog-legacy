@@ -15,9 +15,13 @@ OptionParser.new { |opts|
     raw = true
   end
 
+  opts.on("-nNUM", "Show last NUMth command log filename") do |v|
+    nth = v.to_i
+  end
+
   opts.on("-pPID", "PID of a zenlog session to show log instead of current session.") do |v|
     pid = v.to_i
   end
 }.order!
 
-BuiltIns.history(raw, pid, 1)
+BuiltIns.history(raw, pid, nth)

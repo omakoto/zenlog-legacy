@@ -1,17 +1,18 @@
 #!bash
 
-last_command() {
-  HISTTIMEFORMAT= history 1 | sed -e "s/^[ ]*[0-9]*[ ]*//"
-}
+ZENLOG=$(readlink -m "$(dirname "${BASH_SOURCE[0]}")"/../zenlog)
+echo $ZENLOG
+
+. <("$ZENLOG" -s)
 
 preexec() {
-  zenlog4 start-command $(last_command)
+  "$ZENLOG" start-command $(bash_last_command)
 }
 
 prompt_command() {
-  zenlog4 stop-log
+  "$ZENLOG" stop-log
 }
 
-PS1='[\w \$\$=$$ ZENLOG4_PID=$ZENLOG4_PID]\n\$ '
+PS1='[\w \$\$=$$ ZENLOG_PID=$ZENLOG_PID]\n\$ '
 PS0='$(preexec)'
 PROMPT_COMMAND="prompt_command"

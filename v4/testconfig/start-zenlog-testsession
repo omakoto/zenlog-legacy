@@ -2,9 +2,10 @@
 
 medir="${0%/*}"
 
-export ZENLOG4_RC="$medir/zenlogrc.rb"
-export ZENLOG4_START_COMMAND="/bin/bash --noprofile --rcfile $medir/bashrc"
-export ZENLOG4_DIR=~/zenlog4
+export ZENLOG_RC="$medir/zenlogrc.rb"
+export ZENLOG_START_COMMAND="/bin/bash --noprofile --rcfile $medir/bashrc"
+export ZENLOG_DIR=~/zenlog4
+#export ZENLOG_DEBUG=1
 
 export PATH="$medir/..:$PATH"
-zenlog4
+zenlog
