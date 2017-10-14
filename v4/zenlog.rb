@@ -5,6 +5,10 @@ require 'ttyname'
 require 'pp'
 require_relative 'shellhelper'
 
+#-----------------------------------------------------------
+# Constants.
+#-----------------------------------------------------------
+
 ZENLOG_PREFIX = 'ZENLOG4'
 ZENLOG_ALWAYS_NO_LOG_COMMANDS = ZENLOG_PREFIX + '_ALWAYS_NO_LOG_COMMANDS'
 ZENLOG_COMMAND_IN = ZENLOG_PREFIX + '_COMMAND_IN'
@@ -84,7 +88,6 @@ module ZenCore
     str.gsub!(%r[ \x08 ]x, '^H');
     return str;
   end
-
 end
 
 include ZenCore
@@ -231,9 +234,6 @@ module BuiltIns
     when "stop_log"
       return ->(*args){stop_log}
 
-    when "stop_log"
-      return ->(*args){stop_log}
-
     when "outer_tty"
       return ->(*args) {outer_tty}
 
@@ -306,6 +306,10 @@ class ZenLogger
       # Child
       debug {"Child: PID=#{$$}\n"}
 
+      # Not we don't actually copy the FDs to the child...
+      # we can just let the subprocesses write to the parent's
+      # /proc/xxx/fd/yyy. But we copy them anyway because that seems
+      # clean...
       logger_out_name = "/proc/#{$$}/fd/#{FD_LOGGER_OUT}"
       command_in_name = "/proc/#{$$}/fd/#{FD_COMMAND_IN}"
 
@@ -318,8 +322,8 @@ class ZenLogger
           "export #{ZENLOG_TTY}=$(tty);" +
           "exec #{@start_command}", # TODO Shescape?
           logger_out_name,
-          FD_LOGGER_OUT=>@logger_out,
-          FD_COMMAND_IN=>@command_in]
+          FD_LOGGER_OUT => @logger_out,
+          FD_COMMAND_IN => @command_in]
       debug {"Starting: #{command}\n"}
       exec *command
 
