@@ -2,7 +2,7 @@
 $VERBOSE = true
 
 require 'ttyname'
-require 'pp'
+require 'fileutils'
 require_relative 'shellhelper'
 
 #-----------------------------------------------------------
@@ -32,12 +32,13 @@ DEBUG = true #ENV[ZENLOG_DEBUG] == "1"
 # Core functions.
 #-----------------------------------------------------------
 
-$is_logger = false # Just to change the debug log color...
+$is_logger = false # Used to change the debug log color.
 
 module ZenCore
   def say(*args, &block)
     message = args.join('') + (block ? block.call() : '')
-    $stdout.print message.gsub(/\r*\n/, "\r\n") # Replace LFs with CRLFs # TODO Do it conditionally
+    message.gsub!(/\r*\n/, "\r\n") if $is_logger
+    $stdout.print message
   end
 
   def debug(*args, &block)
@@ -61,32 +62,40 @@ module ZenCore
       tty = ($stdin.ttyname or $stdout.ttyname or $stderr.ttyname)
       return tty if tty
     rescue RuntimeError
+      # Fall through.
     end
 
     # Otherwise, just ask the ps command...
-    pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null)
-    pstty.chomp!
+    pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null).chomp
     tty = '/dev/' + pstty
     return File.exist?(tty) ? tty : nil
   end
 
-  # Remove ansi escape sequences from a string.
+  # Remove ANSI escape sequences from a string.
   def sanitize(str)
-    str.gsub! %r[(
+    str.gsub! %r!(
           \a                         # Bell
           | \e \x5B .*? [\x40-\x7E]  # CSI
           | \e \x5D .*? \x07         # Set terminal title
           | \e \( .                  # 3 byte sequence
           | \e [\x40-\x5A\x5C\x5F]   # 2 byte sequence
-          )]x
+          )!x, ""
 
     # Also clean up CR/LFs.
-    str.gsub!(%r[ \s* \x0d* \x0a ]x, "\n") # Remove end-of-line CRs.
-    str.gsub!(%r[ \s* \x0d ]x, "\n")       # Replace orphan CRs with LFs.
+    str.gsub!(%r! \s* \x0d* \x0a !x, "\n") # Remove end-of-line CRs.
+    str.gsub!(%r! \s* \x0d !x, "\n")       # Replace orphan CRs with LFs.
 
     # Also replace ^H's.
-    str.gsub!(%r[ \x08 ]x, '^H');
+    str.gsub!(%r! \x08 !x, '^H');
     return str;
+  end
+
+  # Convert a string into what's safe to use in a filename.
+  def filename_safe(str)
+    return nil if str == nil
+    str.gsub!(/\s+/, "")
+    str.gsub!(%r![\s\/\'\"\|\[\]\\\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
+    return str
   end
 end
 
@@ -116,13 +125,17 @@ module BuiltIns
     return true
   end
 
+  def write_to_logger(&block)
+      open(ENV[ZENLOG_LOGGER_OUT], "w", &block)
+  end
+
   # Tell zenlog to start logging for a command line.
   def start_command(*command_line_words)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
 
     if in_zenlog
       # Send "command start" to the logger directly.
-      open ENV[ZENLOG_LOGGER_OUT], "w" do |out|
+      write_to_logger do |out|
         out.print(
             COMMAND_START_MARKER,
             command_line_words.join(" ").gsub(/\r*\n/, " "),
@@ -138,7 +151,7 @@ module BuiltIns
     if in_zenlog
       # Send "stop log" to the logger directly.
       fingerprint = Time.now.to_f.to_s
-      open ENV[ZENLOG_LOGGER_OUT], "w" do |out|
+      write_to_logger do |out|
         out.print(STOP_LOG_MARKER, fingerprint, "\n")
       end
 
@@ -165,8 +178,14 @@ module BuiltIns
     end
   end
 
-  def write_to_outer
-    pipe_stdin_to_file ENV[ZENLOG_OUTER_TTY], cr_needed:false
+  # Print the pipe filename to the logger
+  def logger_pipe
+    if in_zenlog
+      puts ENV[ZENLOG_LOGGER_OUT]
+      return true
+    else
+      return false
+    end
   end
 
   # Called by the logger to see if an incoming line is of a command start
@@ -237,9 +256,10 @@ module BuiltIns
     when "outer_tty"
       return ->(*args) {outer_tty}
 
-    when "write_to_outer"
-      return ->(*args) {write_to_outer}
+    when "logger_pipe"
+      return ->(*args) {logger_pipe}
     end
+
     return nil
   end
 end
@@ -247,6 +267,182 @@ end
 include BuiltIns
 
 class ZenLogger
+  RAW = 'RAW'
+  RAW_LINK = 'R'
+  SAN = 'SAN'
+  SAN_LINK = 'P'
+
+  MAX_PREV_LINKS = 10
+
+  def initialize(log_dir, pid, logger_in, command_out)
+    @log_dir = log_dir
+    @pid = pid
+    @logger_in = logger_in
+    @command_out = command_out
+    @prefix_commands = ENV[ZENLOG_PREFIX_COMMANDS] || \
+        DEFAULT_ZENLOG_PREFIX_COMMANDS
+    @always_no_log_commands = ENV[ZENLOG_ALWAYS_NO_LOG_COMMANDS] || \
+        DEFAULT_ZENLOG_ALWAYS_NO_LOG_COMMANDS
+
+    @prefix_commands_re = Regexp.compile('^' + @prefix_commands + '$')
+    @always_no_log_commands_re = Regexp.compile('^' + @always_no_log_commands + '$')
+
+    @san = nil
+    @raw = nil
+  end
+
+  def create_prev_links(full_dir_name, link_name, log_file_name)
+    MAX_PREV_LINKS.downto(2) do |n|
+      from = (full_dir_name + "/" + (link_name * (n - 1)))
+      to   = full_dir_name + "/" + (link_name * n)
+      FileUtils.mv(from, to, {force:true}) if File.exist? from
+    end
+    FileUtils.ln_s(log_file_name, full_dir_name + "/" + link_name)
+  end
+
+  def create_links(parent_dir, dir, type, link_name, log_file_name, now)
+    return if dir == "." || dir == ".."
+
+    full_dir_name = (@log_dir + "/" + parent_dir + "/" + dir + "/" + type +
+        "/" + now.strftime('%Y/%m/%d')).gsub(%r!/+!, "/")
+
+    FileUtils.mkdir_p(full_dir_name)
+
+    FileUtils.ln_s(log_file_name,
+        full_dir_name + "/" + log_file_name.sub(/^.*\//, ""))
+
+    create_prev_links(@log_dir + "/" + parent_dir + "/" + dir, link_name, log_file_name)
+  end
+
+  # Start logging for a command.
+  # Open the raw/san streams, create symlinks, etc.
+  def start_logging(command_line)
+    tokens = shsplit(command_line)
+
+    # All the executable command names in the command pipeline.
+    command_names = []
+
+    # Comment, which is used for tagging.
+    comment = nil
+
+    nolog_detected = false
+
+    if tokens.length > 0
+      # If the last token starts with "#", it's a comment.
+      last = tokens[-1]
+      if last =~ /^\#/
+        # Compress consecutive spaces into one.
+        comment = last.sub(/^#\s*/, '').sub(/\s\s+/, " ")
+      end
+
+      command_start = true
+      tokens.each do |token|
+        # Extract the first token as a command name.
+        if command_start && !is_shell_op(token) && token !~ @prefix_commands_re
+          command_names << token
+          command_start = false
+
+          nolog_detected = true if token =~ @always_no_log_commands_re
+        end
+
+        command_start |= (token =~ /^(?: \| | \|\| | \&\& | \; )$/x)
+      end
+      debug {"Commands=#{command_names.inspect}#{nolog_detected ? " *nolog" : ""}" +
+          ", comment=#{comment}\n"}
+    end
+
+    open_log(command_line, command_names, comment, nolog_detected)
+  end
+
+  def create_log_filename(command_line, tag, now)
+    tag_str = "_+" + tag if tag
+    command_str = filename_safe(command_line)[0,32]
+
+    return sprintf("%s/#{RAW}/%s-%05d%s_+%s.log",
+        @log_dir,
+        now.strftime('%Y/%m/%d/%H-%M-%S.%L'),
+        @pid,
+        tag_str,
+        command_str).sub(%r(/+), "/") # compress consecutive /s.
+  end
+
+  def open_logfile(filename, type, link_name)
+    FileUtils.mkdir_p(File.dirname(filename))
+    out = open(filename, "w")
+    return out
+  end
+
+  def open_log(command_line, command_names, comment, no_log)
+    tag = filename_safe(comment)
+    now = Time.now.getlocal
+
+    raw_name = create_log_filename(command_line, tag, now)
+    san_name = raw_name.gsub(/#{RAW}/o, SAN)
+
+    @raw = open_logfile(raw_name, RAW, RAW_LINK)
+    @san = open_logfile(san_name, SAN, SAN_LINK)
+
+    [[raw_name, RAW, RAW_LINK], [san_name, SAN, SAN_LINK]].each do |log_name, type, link_name|
+      create_prev_links(@log_dir, link_name, log_name)
+
+      pid_s = @pid.to_s
+      create_links("pids", pid_s, type, link_name, log_name, now)
+
+      command_names.each do |command|
+        create_links("cmds", command, type, link_name, log_name, now)
+      end
+
+      if tag
+        create_links("tags", tag, type, link_name, log_name, now)
+      end
+    end
+
+    write_log "\$ \e[1;3;4;33m#{command_line}\e[0m\n"
+    if no_log
+      write_log "[omitted]\n"
+      stop_logging
+      return
+    end
+  end
+
+  def write_log(line)
+    @raw.print(line) if @raw
+    @san.print(sanitize(line)) if @san
+  end
+
+  def stop_logging()
+    @raw.close if @raw
+    @san.close if @san
+    @raw = nil
+    @san = nil
+  end
+
+  def start
+    @logger_in.each_line do |line|
+      command = BuiltIns.match_command_start(line)
+      if command != nil
+        debug {"Command started: \"#{command}\"\n"}
+
+        start_logging(command)
+        next
+      end
+
+      last_line, fingerprint = BuiltIns.match_stop_log(line)
+      if fingerprint
+        debug {"Command finished: #{fingerprint}\n"}
+
+        stop_logging
+        @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
+        next
+      end
+
+      write_log line
+    end
+  end
+end
+
+
+class ZenStarter
   def initialize(rc_file:nil)
     @rc_file = rc_file
   end
@@ -261,13 +457,6 @@ class ZenLogger
 
     @log_dir = ENV[ZENLOG_DIR] || DEFAULT_ZENLOG_DIR
     @start_command = ENV[ZENLOG_START_COMMAND] || DEFAULT_ZENLOG_START_COMMAND
-    @prefix_commands = ENV[ZENLOG_PREFIX_COMMANDS] || \
-        DEFAULT_ZENLOG_PREFIX_COMMANDS
-    @always_no_log_commands = ENV[ZENLOG_ALWAYS_NO_LOG_COMMANDS] || \
-        DEFAULT_ZENLOG_ALWAYS_NO_LOG_COMMANDS
-
-    @prefix_commands_re = Regexp.compile('^' + @prefix_commands + '$')
-    @always_no_log_commands_re = Regexp.compile('^' + @always_no_log_commands + '$')
   end
 
   def export_env()
@@ -303,7 +492,7 @@ class ZenLogger
     pid = Process.fork
 
     if pid == nil
-      # Child
+      # Child, which runs the shell.
       debug {"Child: PID=#{$$}\n"}
 
       # Not we don't actually copy the FDs to the child...
@@ -331,7 +520,7 @@ class ZenLogger
       exec "/bin/bash"
       exit 127
     else
-      # Parent
+      # Parent, which is the logger.
       $is_logger = true
       debug {"Parent\n"}
       @logger_out.close()
@@ -342,71 +531,12 @@ class ZenLogger
         @command_out.close()
       end
 
-      logger_main_loop
+      ZenLogger.new(@log_dir, $$, @logger_in, @command_out).start
 
       debug {"Logger process finishing...\n"}
       exit 0
     end
     return true
-  end
-
-  # Start logging for a command.
-  # Open the raw/san streams, create symlinks, etc.
-  def start_logging(command_line)
-    tokens = shsplit(command_line)
-
-    command_names = []
-    comment = nil
-
-    nolog_detected = false
-
-    if tokens.length > 0
-      # If the last token starts with "#", it's a comment.
-      last = tokens[-1]
-      if last =~ /^\#/
-        # Compress consecutive spaces into one.
-        comment = last.sub(/^#\s*/, '').sub(/\s\s+/, " ")
-      end
-
-      command_start = true
-      tokens.each do |token|
-        # Extract the first token as a command name.
-        if command_start && !is_shell_op(token) && token !~ @prefix_commands_re
-          command_names << token
-          command_start = false
-
-          nolog_detected = true if token =~ @always_no_log_commands_re
-        end
-
-        command_start |= (token =~ /^(?: \| | \|\| | \&\& | \; )$/x)
-      end
-      debug {"Commands=#{command_names.inspect}#{nolog_detected ? " *nolog" : ""}" +
-          ", comment=#{comment}\n"}
-    end
-  end
-
-  def stop_logging()
-  end
-
-  def logger_main_loop
-    @logger_in.each_line do |line|
-      command = BuiltIns.match_command_start(line)
-      if command != nil
-        debug {"Command started: \"#{command}\"\n"}
-
-        start_logging(command)
-        next
-      end
-
-      last_line, fingerprint = BuiltIns.match_stop_log(line)
-      if fingerprint
-        debug {"Command finished: #{fingerprint}\n"}
-
-        stop_logging
-        @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
-        next
-      end
-    end
   end
 end
 
@@ -455,7 +585,7 @@ class Main
     # Start a new zenlog session?
     if args.length == 0
       fail_if_in_zenlog
-      exit ZenLogger.new(rc_file:RC_FILE).start ? 0 : 1
+      exit ZenStarter.new(rc_file:RC_FILE).start ? 0 : 1
     end
 
     # Otherwise, if there's more than one argument, run a subcommand.
