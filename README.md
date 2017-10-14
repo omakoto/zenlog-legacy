@@ -107,16 +107,94 @@ $ zenlog history
 
 ## Subcommands
 
-To be written...
-
-* `zenlog history`
+### Directive commands
 
 * `zenlog start-command COMMANDLINE`
 
+Run this command in the pre-exec hook to have Zenlog start logging. COMMANDLINE can be obtained with `bash_last_command` which comes with `zenlog she-helper`, which is explained below.
+
 * `zenlog stop-log`
 
-* `zenlog purge-log`
+Run this command in the post-exec hook to have Zenlog stop logging.
 
+### Commands to show / open log files
+
+* `zenlog history`  Print most recent log filenames.
+
+Example:
+```
+$ zenlog history
+/zenlog/SAN/2017/10/14/16-06-20.773-01908_+ls_etc_.log
+/zenlog/SAN/2017/10/14/16-06-32.075-01908_+cat_etc_passwd.log
+/zenlog/SAN/2017/10/14/16-06-40.080-01908_+zenlog_history.log
+```
+
+Example: Show RAW files instead.
+```
+$ zenlog history -r
+/zenlog/RAW/2017/10/14/16-06-20.773-01908_+ls_etc_.log
+/zenlog/RAW/2017/10/14/16-06-32.075-01908_+cat_etc_passwd.log
+/zenlog/RAW/2017/10/14/16-06-40.080-01908_+zenlog_history.log
+/zenlog/RAW/2017/10/14/16-07-02.976-01908_+zenlog_history_-r.log
+```
+
+* `zenlog history -n NTH`  Print NTH last log filename.
+
+```
+$ cat /etc/passwd
+  :
+$ zenlog history -n 1
+/zenlog/SAN/2017/10/14/16-08-32.236-01908_+cat_etc_passwd.log
+```
+
+* `zenlog open-last-log [-r]` Open last log file. `-r` to open RAW instead of SAN.
+* `zenlog open-current-log [-r]` Open current log file. `-r` to open RAW instead of SAN.
+
+* `zenlog last-log [-r]` Print last log file name. `-r` to show RAW name instead of SAN.
+
+* `zenlog current-log [-r]` Print current log file name. `-r` to show RAW name instead of SAN.
+
+`last-log` and `current-log` are useful for scripting. `current-log` is useful when executing a command *on* the command line prompt. For example, on Bash, you can define a hotkey to launch a command with `bind -x`. Using this, `bind -x '"\e1": "zenlog open-current-log"'` allows you to open the last log file with pressing `ALT-1`.
+
+
+### Other commands
+
+* `zenlog sh-helper`
+
+Print bash script that contains shell helper functions. Install them with:
+
+```
+. <(zenlog sh-helper)
+```
+
+The included functions are:
+
+`in_zenlog` returns success status when the shell is in a Zenlog session.
+
+Example:
+```
+$ in_enlog && echo "in-zenlog!"
+```
+
+
+`184 COMMAND` executes a command without logging.
+
+Example: This will print the content of the `a_huge_file_that_not_worth_logging` file without logging it.
+```
+$ 184 cat a_huge_file_that_not_worth_logging
+```
+
+`186 COMMAND` executes a command with logging, even if a command contains NO_LOG commands. ("man" is included in the default no log list, so normally the output won't be logged. See `ZENLOG_ALWAYS_NO_LOG_COMMANDS` below.)
+
+Example: This runs `man bash` with logging it.
+```
+$ 186 man bash
+```
+
+`bash_last_command` shows the most recent command line. Intended to be used with `start-command`. See [the sample bash config file](shell/zenlog.bash).
+
+
+* `zenlog purge-log -p DAYS` Remove logs older than DAYS days.
 
 
 ## Configuration
@@ -162,10 +240,15 @@ EOF
 ) )
 ```
 
-* v1 -- The hybrid script was getting harder and harder to maintain and was also ugly, so I split it into multiple files. Also subcommands were now extracted to separate files. v1 still had both the Bash part and the Perl part.
+* v1 -- The hybrid script was getting harder and harder to maintain and was also ugly, so I finally gave up and split it into multiple files. Also subcommands were now extracted to separate files. v1 still had both the Bash part and the Perl part.
 
- * v2 -- Rewrote in Perl. No more Bash, except in external subcommands.
+ * v2 -- Rewrote entirely in Perl. No more Bash, except in external subcommands.
 
  * v3 -- Original attempt to rewrite in Ruby, but got bored and it didn't happen.
 
- * v4 -- v2 was still ugly and hard to improve, so finally rewrote in Ruby. This has a lot better command line parser, for example, which is used to detect command names in a command line. v2's parser was very hacky so it could mis-parse.
+ * v4 -- v2 was still ugly and hard to improve, so finally rewrote in Ruby. This version has a lot better command line parser, for example, which is used to detect command names in a command line. v2's parser was very hacky so it could mis-parse.
+
+# See also
+
+## A2H ANSI to HTML converter
+[A2H](https://github.com/omakoto/a2h-rs) can be used to convert RAW log files into HTML.

@@ -29,4 +29,5 @@ PROMPT_COMMAND="_prompt_command"
 PS0='$(_preexec_command)'
 
 # Press ALT+1 on prompt to open the last log.
+# See README.md.
 bind -x '"\e1": "$ZENLOG open-current-log"'

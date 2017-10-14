@@ -238,35 +238,6 @@ module BuiltIns
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
   end
 
-  def sh_helper
-    print <<~'EOF'
-        # Return sucess when in zenlog.
-        function in_zenlog() {
-          zenlog in-zenlog
-        }
-
-        # Run a command without logging the output.
-        function _zenlog_nolog() {
-          "${@}"
-        }
-        alias 184=_zenlog_nolog
-
-        # Run a command with forcing log, regardless of ZENLOG_ALWAYS_184_COMMANDS.
-        function _zenlog_force_log() {
-          "${@}"
-        }
-        alias 186=_zenlog_force_log
-
-        # Print the current command's command line.  Use with "zenlog start-command".
-        function bash_last_command() {
-          # Use echo to remove newlines.
-          echo $(HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//')
-        }
-
-        EOF
-    return true
-  end
-
   def ensure_log_dir
     log_dir = ENV[ZENLOG_DIR]
     if !log_dir
@@ -327,9 +298,6 @@ module BuiltIns
 
     when "logger_pipe"
       return ->(*args) {logger_pipe}
-
-    when "sh_helper"
-      return ->(*args) {sh_helper}
 
     when "ensure_log_dir"
       return ->(*args) {ensure_log_dir}
