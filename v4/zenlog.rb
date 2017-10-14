@@ -98,7 +98,7 @@ module ZenCore
   # Convert a string into what's safe to use in a filename.
   def filename_safe(str)
     return "" if str == nil
-    return str.gsub(/\s+/, "") \
+    return str.gsub(/\s+/, " ") \
         .gsub(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
   end
 end
@@ -192,10 +192,12 @@ module BuiltIns
     end
   end
 
+  # Eat from stdin and write to ZENLOG_OUTER_TTY
   def write_to_outer
     return forward_stdin_to_file ENV[ZENLOG_OUTER_TTY]
   end
 
+  # Eat from stdin and write to ZENLOG_LOGGER_OUT
   def write_to_logger
     return forward_stdin_to_file ENV[ZENLOG_LOGGER_OUT]
   end
@@ -452,6 +454,7 @@ class ZenLogger
   def open_logfile(filename)
     FileUtils.mkdir_p(File.dirname(filename))
     out = open(filename, "w")
+    out.sync = true
     return out
   end
 
