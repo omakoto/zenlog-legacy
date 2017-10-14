@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 $VERBOSE = true
 
-require 'ttyname'
 require 'fileutils'
 require_relative 'shellhelper'
 
@@ -57,12 +56,18 @@ module ZenCore
 
   # Return the tty name for this process.
   def get_tty
-    # If any of stdin/stdout/stderr has a ttyname, just use it.
     begin
-      tty = ($stdin.ttyname or $stdout.ttyname or $stderr.ttyname)
-      return tty if tty
-    rescue RuntimeError
-      # Fall through.
+      require 'ttyname'
+
+      # If any of stdin/stdout/stderr has a ttyname, just use it.
+      begin
+        tty = ($stdin.ttyname or $stdout.ttyname or $stderr.ttyname)
+        return tty if tty
+      rescue RuntimeError
+        # Fall through.
+      end
+    rescue LoadError
+      # Ignore and use ps.
     end
 
     # Otherwise, just ask the ps command...
@@ -94,7 +99,7 @@ module ZenCore
   def filename_safe(str)
     return nil if str == nil
     str.gsub!(/\s+/, "")
-    str.gsub!(%r![\s\/\'\"\|\[\]\\\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
+    str.gsub!(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
     return str
   end
 end
@@ -125,7 +130,7 @@ module BuiltIns
     return true
   end
 
-  def write_to_logger(&block)
+  def with_logger(&block)
       open(ENV[ZENLOG_LOGGER_OUT], "w", &block)
   end
 
@@ -135,7 +140,7 @@ module BuiltIns
 
     if in_zenlog
       # Send "command start" to the logger directly.
-      write_to_logger do |out|
+      with_logger do |out|
         out.print(
             COMMAND_START_MARKER,
             command_line_words.join(" ").gsub(/\r*\n/, " "),
@@ -151,7 +156,7 @@ module BuiltIns
     if in_zenlog
       # Send "stop log" to the logger directly.
       fingerprint = Time.now.to_f.to_s
-      write_to_logger do |out|
+      with_logger do |out|
         out.print(STOP_LOG_MARKER, fingerprint, "\n")
       end
 
@@ -187,6 +192,23 @@ module BuiltIns
       return false
     end
   end
+
+  def write_to_outer
+    return forward_stdin_to_file ENV[ZENLOG_OUTER_TTY]
+  end
+
+  def write_to_logger
+    return forward_stdin_to_file ENV[ZENLOG_LOGGER_OUT]
+  end
+
+  def forward_stdin_to_file(file)
+    out = in_zenlog ? (open file, "w") : $stdout
+    $stdin.each_line do |line|
+      out.print line
+    end
+    return true
+  end
+
 
   # Called by the logger to see if an incoming line is of a command start
   # marker, and if so, returns the command line.
@@ -310,6 +332,12 @@ module BuiltIns
 
     when "ensure_log_dir"
       return ->(*args) {ensure_log_dir}
+
+    when "write_to_outer"
+      return ->(*args) {write_to_outer}
+
+    when "write_to_logger"
+      return ->(*args) {write_to_logger}
 
     end
 
@@ -622,8 +650,7 @@ class Main
   def maybe_exec_external_command(command, args)
     # Look for a "zenlog-subcommand" executable file, in the the zenlog
     # install directory, or the PATH directories.
-    my_file = __FILE__
-    my_file = File.symlink?(my_file) ? File.readlink(my_file) : my_file
+    my_file = File.realpath(__FILE__)
     debug {"my_file=#{my_file}\n"}
     my_path = File.dirname(my_file)
 
