@@ -8,28 +8,32 @@ require_relative 'shellhelper'
 # Constants.
 #-----------------------------------------------------------
 
-ZENLOG_PREFIX = 'ZENLOG'
-ZENLOG_ALWAYS_NO_LOG_COMMANDS = ZENLOG_PREFIX + '_ALWAYS_NO_LOG_COMMANDS'
-ZENLOG_COMMAND_IN = ZENLOG_PREFIX + '_COMMAND_IN'
-ZENLOG_DEBUG = ZENLOG_PREFIX + '_DEBUG'
-ZENLOG_DIR = ZENLOG_PREFIX + '_DIR'
-ZENLOG_LOGGER_OUT = ZENLOG_PREFIX + '_LOGGER_OUT'
-ZENLOG_OUTER_TTY = ZENLOG_PREFIX + '_OUTER_TTY'
-ZENLOG_PID = ZENLOG_PREFIX + '_PID'
-ZENLOG_PREFIX_COMMANDS = ZENLOG_PREFIX + '_PREFIX_COMMANDS'
-ZENLOG_SHELL_PID = ZENLOG_PREFIX + '_SHELL_PID'
-ZENLOG_START_COMMAND = ZENLOG_PREFIX + '_START_COMMAND'
-ZENLOG_TTY = ZENLOG_PREFIX + '_TTY'
-
-ZENLOG_RC = ZENLOG_PREFIX + '_RC'
-
-RC_FILE = ENV[ZENLOG_RC] || Dir.home() + '/.zenlogrc.rb'
-
-DEBUG = ENV[ZENLOG_DEBUG] == "1"
+MY_REALPATH = File.realpath(__FILE__)
 
 # If this file exists all zenlog commands will be no-op, and
 # zenlog sessions won't start and instead always just runs the shell.
 ZENLOG_KILL_SWITCH_FILE = '/tmp/zenlog_stop'
+ZENLOG_KILL_SWITCH_VAR = 'STOP_ZENLOG'
+ZENLOG_FORCE_DEBUG_FILE = '/tmp/zenlog_debug'
+
+ZENLOG_PREFIX = 'ZENLOG_'
+ZENLOG_ALWAYS_NO_LOG_COMMANDS = ZENLOG_PREFIX + 'ALWAYS_NO_LOG_COMMANDS'
+ZENLOG_COMMAND_IN = ZENLOG_PREFIX + 'COMMAND_IN'
+ZENLOG_DEBUG = ZENLOG_PREFIX + 'DEBUG'
+ZENLOG_DIR = ZENLOG_PREFIX + 'DIR'
+ZENLOG_LOGGER_OUT = ZENLOG_PREFIX + 'LOGGER_OUT'
+ZENLOG_OUTER_TTY = ZENLOG_PREFIX + 'OUTER_TTY'
+ZENLOG_PID = ZENLOG_PREFIX + 'PID'
+ZENLOG_PREFIX_COMMANDS = ZENLOG_PREFIX + 'PREFIX_COMMANDS'
+ZENLOG_SHELL_PID = ZENLOG_PREFIX + 'SHELL_PID'
+ZENLOG_START_COMMAND = ZENLOG_PREFIX + 'START_COMMAND'
+ZENLOG_TTY = ZENLOG_PREFIX + 'TTY'
+
+ZENLOG_RC = ZENLOG_PREFIX + 'RC'
+
+RC_FILE = ENV[ZENLOG_RC] || Dir.home() + '/.zenlogrc.rb'
+
+DEBUG = (ENV[ZENLOG_DEBUG] == "1") || File.exist?(ZENLOG_FORCE_DEBUG_FILE)
 
 #-----------------------------------------------------------
 # Core functions.
@@ -104,6 +108,11 @@ module ZenCore
     return "" if str == nil
     return str.gsub(/\s+/, " ") \
         .gsub(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
+  end
+
+  def start_emergency_shell()
+    ENV.delete_if {|k, v| k.start_with? ZENLOG_PREFIX}
+    exec "/bin/bash"
   end
 end
 
@@ -327,6 +336,20 @@ module BuiltIns
     return true
   end
 
+  # Just runs the passed command with exec(), but when exec fails
+  # it'll start the emergency shell instead.
+  # We need this because "sh -c 'exec no-such-command; exec /bin/sh'"
+  # doesn't work.
+  private
+  def self.exec_or_emergency_shell(*args)
+    begin
+      exec *args
+    rescue
+      say "zenlog: failed to start #{args.join(" ")}; starting shell instead.\n"
+      start_emergency_shell
+    end
+  end
+
   # Return a lambda that calls built-in command, or nil of the given
   # command doesn't exist.
   # We don't just use "respond_to?" to avoid leaking ruby functions.
@@ -362,6 +385,9 @@ module BuiltIns
 
     when "write_to_logger"
       return ->(*args) {write_to_logger}
+
+    when "exec_or_emergency_shell"
+      return ->(*args) {exec_or_emergency_shell(*args)}
 
     end
 
@@ -545,7 +571,7 @@ class ZenLogger
     if child_status != 0
       say "\e[0m\e[31mZenlog: Child stopped with error status #{child_status}," +
           " starting bash instead.\e[0m\n"
-      exec "/bin/bash"
+      start_emergency_shell
     end
   end
 
@@ -688,9 +714,8 @@ class ZenStarter
           "#{ZENLOG_LOGGER_OUT}=#{shescape logger_out_name} " +
           "#{ZENLOG_COMMAND_IN}=#{shescape command_in_name} " +
           "#{ZENLOG_TTY}=$(tty) " +
-          "#{@start_command} " + # TODO Need escaping, but for each token.
-          "|| echo 'Zenlog: unable to start #{@start_command}, starting bash instead.' " +
-          "&& exec /bin/bash",
+          # TODO The below code needs escaping, but for each token.
+          "exec '#{MY_REALPATH}' exec_or_emergency_shell #{@start_command}",
           logger_out_name,
           FD_LOGGER_OUT => @logger_out,
           FD_COMMAND_IN => @command_in]
@@ -721,13 +746,15 @@ end
 # Entry point.
 #-----------------------------------------------------------
 class Main
-  def has_kill_file()
-    return File.exist? ZENLOG_KILL_SWITCH_FILE
+  def no_zenlog?()
+    return File.exist?(ZENLOG_KILL_SWITCH_FILE) \
+        || (ENV[ZENLOG_KILL_SWITCH_VAR] == "1")
   end
 
   def maybe_exec_builtin_command(command, args)
     builtin = BuiltIns.get_builtin_command command.gsub('-', '_')
     if builtin
+      debug {"Running builtin: #{command} with args: #{args.inspect}\n"}
       exit(builtin.call(*args) ? 0 : 1)
     end
   end
@@ -754,13 +781,13 @@ class Main
   def main(args)
     # Start a new zenlog session?
     if args.length == 0
-      if has_kill_file
-        exec '/bin/bash -l'
+      if no_zenlog?
+        start_emergency_shell
       end
       exit(ZenStarter.new(rc_file:RC_FILE).start_zenlog_session ? 0 : 1)
     end
 
-    if has_kill_file
+    if no_zenlog?
       exit 0
     end
     # Otherwise, if there's more than one argument, run a subcommand.
@@ -775,6 +802,6 @@ class Main
   end
 end
 
-if File.realpath(__FILE__) == File.realpath($0)
+if MY_REALPATH == File.realpath($0)
   Main.new.main(ARGV)
 end
