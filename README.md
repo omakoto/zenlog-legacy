@@ -231,7 +231,7 @@ The default is `"(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)"`
 
 If this file exists, Zenlog loads it before starting a session. 
 
-If you star Zenlog directory form a terminal application, Zenlog starts before the actual login shell starts, so you can't configure it with the shell's RC file. Instead you can configure environmental variables in this file.
+If you star Zenlog directly form a terminal application, Zenlog starts before the actual login shell starts, so you can't configure it with the shell's RC file. Instead you can configure environmental variables in this file.
 
 ## History
 
