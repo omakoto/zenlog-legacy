@@ -194,22 +194,22 @@ module BuiltIns
 
   # Eat from stdin and write to ZENLOG_OUTER_TTY
   def write_to_outer
-    return forward_stdin_to_file ENV[ZENLOG_OUTER_TTY]
+    return forward_stdin_to_file ENV[ZENLOG_OUTER_TTY], need_cr:true
   end
 
   # Eat from stdin and write to ZENLOG_LOGGER_OUT
   def write_to_logger
-    return forward_stdin_to_file ENV[ZENLOG_LOGGER_OUT]
+    return forward_stdin_to_file ENV[ZENLOG_LOGGER_OUT], need_cr:false
   end
 
-  def forward_stdin_to_file(file)
+  def forward_stdin_to_file(file, need_cr:false)
     out = in_zenlog ? (open file, "w") : $stdout
     $stdin.each_line do |line|
+      line.sub!(/\r*\n$/, "\r\n") if need_cr
       out.print line
     end
     return true
   end
-
 
   # Called by the logger to see if an incoming line is of a command start
   # marker, and if so, returns the command line.

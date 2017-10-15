@@ -10,7 +10,7 @@ Old versions (v0 and v1) worked with bash <= 4.3. Newer versions (v2, written in
 
 [The version 0 script](v0/zenlog) shows the basic idea, which is "start a login shell within script(1) and let it log all terminal I/O to a file, but instead of logging to an actual file, pass it to a logger script via a pipe, and let the script detect each command start/end and save the output to separate log files."
 
-Originally the logger script detected command start and finish by detecting special markers embedded in the command prompt. The command start and stop markers were ANSI escape sequences that wouldn't show up on terminal and were made redundant so a sane program would never output. "Redundant" means that, for example, `\e[0m` is a sequence to reset character attributes which is frequently used, and `\e[000000m` technically has the same meaning but no one would write it this way. Zenlog used sequences like this to pass information from within script(1) to the logger script, without showing it on the terminal.
+Originally the logger script detected command start and finish by detecting special markers embedded in the command prompt. The command start and stop markers were ANSI escape sequences that wouldn't show up in the terminal and were made redundant so a sane program would never output. "Redundant" means that, for example, `\e[0m` is a sequence to reset character attributes which is frequently used, and `\e[000000m` technically has the same meaning but no one would write it this way. Zenlog used sequences like this to pass information from within script(1) to the logger script, without showing it on the terminal.
 
 Since v2, Zenlog requires "pre-exec hook", which is `P0` that was added in Bash 4.4. `P0` and `PROMPT_COMMAND` are used to tell the logger process that 1) when to start logging 2) what the command line is, which is used to create per-command synlinks and "tagging" and 3) when to stop logging.
 
@@ -111,17 +111,17 @@ $ zenlog history
 
 * `zenlog start-command COMMANDLINE`
 
-Run this command in the pre-exec hook to have Zenlog start logging. COMMANDLINE can be obtained with `bash_last_command` which comes with `zenlog she-helper`, which is explained below.
+    Run this command in the pre-exec hook to have Zenlog start logging. COMMANDLINE can be obtained with `bash_last_command` which comes with `zenlog she-helper`, which is explained below.
 
 * `zenlog stop-log`
 
-Run this command in the post-exec hook to have Zenlog stop logging.
+    Run this command in the post-exec hook to have Zenlog stop logging.
 
-It is guaranteed that when this command returns, both SAN and RAW log files have been all written and closed. So, for example, counting the number of lines with `wc -l` is safe.
+    It is guaranteed that when this command returns, both SAN and RAW log files have been all written and closed. So, for example, counting the number of lines with `wc -l` is safe.
 
 ### History commands
 
-* `zenlog history`  Print most recent log filenames.
+* `zenlog history [-r]`  Print most recent log filenames.
 
 Example:
 ```
@@ -129,10 +129,7 @@ $ zenlog history
 /zenlog/SAN/2017/10/14/16-06-20.773-01908_+ls_etc_.log
 /zenlog/SAN/2017/10/14/16-06-32.075-01908_+cat_etc_passwd.log
 /zenlog/SAN/2017/10/14/16-06-40.080-01908_+zenlog_history.log
-```
 
-Example: Show RAW files instead.
-```
 $ zenlog history -r
 /zenlog/RAW/2017/10/14/16-06-20.773-01908_+ls_etc_.log
 /zenlog/RAW/2017/10/14/16-06-32.075-01908_+cat_etc_passwd.log
@@ -140,7 +137,7 @@ $ zenlog history -r
 /zenlog/RAW/2017/10/14/16-07-02.976-01908_+zenlog_history_-r.log
 ```
 
-* `zenlog history -n NTH`  Print NTH last log filename.
+* `zenlog history [-r] -n NTH`  Print NTH last log filename.
 
 ```
 $ cat /etc/passwd
@@ -156,7 +153,7 @@ $ zenlog history -n 1
 
 * `zenlog current-log [-r]` Print current log file name. `-r` to show RAW name instead of SAN.
 
-`last-log` and `current-log` are useful for scripting. `current-log` is useful when executing a command *on* the command line prompt. For example, on Bash, you can define a hotkey to launch a command with `bind -x`. Using this, `bind -x '"\e1": "zenlog open-current-log"'` allows you to open the last log file with pressing `ALT-1`.
+    `last-log` and `current-log` are useful for scripting. `current-log` is useful when executing a command *on* the command line prompt. For example, on Bash, you can define a hotkey to launch a command with `bind -x`. Using this, `bind -x '"\e1": "zenlog open-current-log"'` allows you to open the last log file with pressing `ALT-1`.
 
 
 ### Shell helper functions
@@ -170,35 +167,79 @@ The included functions are:
 
 * `in_zenlog` returns success status when the shell is in a Zenlog session.
 
-This is actually an alias to `zenlog in-zenlog`.
+    This is actually an alias to `zenlog in-zenlog`.
 
-Example:
+    Example:
 ```
 $ in_zenlog && echo "in-zenlog!"
-```
-
-This is the same thing as:
-```
 $ zenlog in-zenlog && echo "in-zenlog!"
 ```
 
 
 * `184` executes a command passed as an argument without logging.
 
-Example: This will print the content of the `a_huge_file_that_not_worth_logging` file without logging it.
+    Example: This will print the content of the `a_huge_file_that_not_worth_logging` file without logging it.
 ```
 $ 184 cat a_huge_file_that_not_worth_logging
 ```
 
 * `186` executes a command with logging, even if a command contains NO_LOG commands. ("man" is included in the default no log list, so normally the output won't be logged. See `ZENLOG_ALWAYS_NO_LOG_COMMANDS` below.)
 
-Example: This runs `man bash` with logging it.
+    Example: This runs `man bash` with logging it.
 ```
 $ 186 man bash
 ```
 
 * `bash_last_command` shows the most recent command line. Intended to be used with `start-command`. See [the sample bash config file](shell/zenlog.bash).
 
+### Scripting helper commands
+
+* `zenlog fail_if_in_zenlog`
+
+    Return success status only if in a zenlog session.
+
+* `zenlog fail_unless_in_zenlog`
+
+    Return success status only if *not* in a zenlog session.
+
+* `zenlog outer_tty`
+
+    Print the external TTY name, which can be used to print something in the terminal without logging it.
+
+    *Note* if you write to the TTY directly, you'll have to explicitly use CRLF instead of LF. See the following example.
+
+    Example:
+```
+$ echo -e "This is shown but not logged\r" > $(zenlog outer_tty)
+```
+
+* `zenlog logger_pipe`
+
+    Print the pipe name to the logger, which can be used to log something without printing it.
+
+    Example:
+```
+$ echo "This is logged but not shown" > $(zenlog logger_pipe)
+```
+
+* `zenlog write_to_outer`
+
+    Eat from STDIN and write to the TTY directly.
+
+    Example:
+```
+$ echo "This is shown but not logged" | zenlog write_to_outer
+```
+
+
+* `zenlog write_to_logger`
+
+    Eat from STDIN and write to the logger directly. Note the bellow example actually doesn't really work because `zenlog` is a no log command and the log file content will be omitted. This is normally used in a script.
+
+    Example:
+```
+$ echo "This is logged but not shown" | zenlog write_to_logger
+```
 
 ### Other commands
 
@@ -215,31 +256,31 @@ $ 186 man bash
 
 * `ZENLOG_DIR`
 
-Log directory. Default is `$HOME/zenlog`.
+    Log directory. Default is `$HOME/zenlog`.
 
 * `ZENLOG_PREFIX_COMMANDS`
 
-A regex that matches command names that are considered "prefix", which will be ignored when Zenlog detects command names. For example, if `time` is a prefix command, when you run `time cc ....`, the log filename will be `"cc"`, not `"time"`.
+    A regex that matches command names that are considered "prefix", which will be ignored when Zenlog detects command names. For example, if `time` is a prefix command, when you run `time cc ....`, the log filename will be `"cc"`, not `"time"`.
 
-The default is `"(?:command|builtin|time|sudo)"`
+    The default is `"(?:command|builtin|time|sudo)"`
 
 * `ZENLOG_ALWAYS_NO_LOG_COMMANDS`
 
-A regex that matches command names that shouldn't be logged. When Zenlog detect these commands, it'll create log files, but the content will be omitted.
+    A regex that matches command names that shouldn't be logged. When Zenlog detect these commands, it'll create log files, but the content will be omitted.
 
-The default is `"(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)"`
+    The default is `"(?:vi|vim|man|nano|pico|less|watch|emacs|zenlog.*)"`
 
 ### RC file
 
 * `$HOME/.zenlogrc.rb`
 
-If this file exists, Zenlog loads it before starting a session. 
+    If this file exists, Zenlog loads it before starting a session. 
 
-If you star Zenlog directly form a terminal application, Zenlog starts before the actual login shell starts, so you can't configure it with the shell's RC file. Instead you can configure environmental variables in this file.
+    If you star Zenlog directly form a terminal application, Zenlog starts before the actual login shell starts, so you can't configure it with the shell's RC file. Instead you can configure environmental variables in this file.
 
 ## History
 
-* v0 -- the original version. It evolved from a proof-of-concept script, which was bash-perl hybrid, because I wanted to keep everything in a single file, and I kinda liked the ugliness of the hybrid script. The below script shows the basic structure. ZENLOG_TTY was (and still is) used to check if the current terminal is within Zenlog or not.
+* v0 -- the original version. It evolved from a proof-of-concept script, and was bash-perl hybrid, because I wanted to keep everything in a single file, and I also kinda liked the ugliness of the hybrid script. The below script shows the basic structure. ZENLOG_TTY was (and still is) used to check if the current terminal is within Zenlog or not. (We can't just use "export IN_ZENLOG=1" because if a GUI terminal app is launched from within a Zenlog session, it'd inherit IN_ZENLOG. So instead Zenlog stores the actual TTY name and make sure the current TTY name is the same as the stored one. Technically this could still misjudge when the Zenlog session has already been closed and the TTY name is reused, but that's probably too rare to worry about.)
 
 ```bash
 #!/bin/bash
@@ -256,7 +297,7 @@ EOF
 
  * v2 -- Rewrote entirely in Perl. No more Bash, except in external subcommands.
 
- * v3 -- Original attempt to rewrite in Ruby, but got bored and it didn't happen.
+ * v3 -- First attempt to rewrite in Ruby, but I soon got bored and it didn't happen.
 
  * v4 -- v2 was still ugly and hard to improve, so finally rewrote in Ruby. This version has a lot better command line parser, for example, which is used to detect command names in a command line. v2's parser was very hacky so it could mis-parse.
 
