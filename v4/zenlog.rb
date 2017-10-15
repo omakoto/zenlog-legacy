@@ -27,6 +27,10 @@ RC_FILE = ENV[ZENLOG_RC] || Dir.home() + '/.zenlogrc.rb'
 
 DEBUG = ENV[ZENLOG_DEBUG] == "1"
 
+# If this file exists all zenlog commands will be no-op, and
+# zenlog sessions won't start and instead always just runs the shell.
+ZENLOG_KILL_SWITCH_FILE = '/tmp/zenlog_stop'
+
 #-----------------------------------------------------------
 # Core functions.
 #-----------------------------------------------------------
@@ -717,6 +721,10 @@ end
 # Entry point.
 #-----------------------------------------------------------
 class Main
+  def has_kill_file()
+    return File.exist? ZENLOG_KILL_SWITCH_FILE
+  end
+
   def maybe_exec_builtin_command(command, args)
     builtin = BuiltIns.get_builtin_command command.gsub('-', '_')
     if builtin
@@ -746,9 +754,15 @@ class Main
   def main(args)
     # Start a new zenlog session?
     if args.length == 0
+      if has_kill_file
+        exec '/bin/bash -l'
+      end
       exit(ZenStarter.new(rc_file:RC_FILE).start_zenlog_session ? 0 : 1)
     end
 
+    if has_kill_file
+      exit 0
+    end
     # Otherwise, if there's more than one argument, run a subcommand.
     subcommand = args.shift
 
