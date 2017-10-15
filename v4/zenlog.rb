@@ -259,16 +259,12 @@ module BuiltIns
     if nth >= 0
       files = [dir + "/" + name * (nth + 1)]
     else
-      files = Pathname.glob(dir + "/" + name + "*").map {|x| x.to_s}.reverse
+      files = Pathname.glob(dir + "/" + name + "*") \
+          .reject {|p| !p.symlink?} \
+          .map {|x| x.to_s}.reverse
     end
 
-    files.map {|f|
-      if File.symlink? f
-        File.readlink(f)
-      else
-        f
-      end
-    }.map {|f| f.gsub(/\/+/, "/")}.sort.each {|f| puts f}
+    files.map {|f| File.readlink(f)}.map {|f| f.gsub(/\/+/, "/")}.sort.each {|f| puts f}
 
     return true
   end
