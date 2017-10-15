@@ -117,7 +117,9 @@ Run this command in the pre-exec hook to have Zenlog start logging. COMMANDLINE 
 
 Run this command in the post-exec hook to have Zenlog stop logging.
 
-### Commands to show / open log files
+It is guaranteed that when this command returns, both SAN and RAW log files have been all written and closed. So, for example, counting the number of lines with `wc -l` is safe.
+
+### History commands
 
 * `zenlog history`  Print most recent log filenames.
 
@@ -157,42 +159,48 @@ $ zenlog history -n 1
 `last-log` and `current-log` are useful for scripting. `current-log` is useful when executing a command *on* the command line prompt. For example, on Bash, you can define a hotkey to launch a command with `bind -x`. Using this, `bind -x '"\e1": "zenlog open-current-log"'` allows you to open the last log file with pressing `ALT-1`.
 
 
-### Other commands
+### Shell helper functions
 
-* `zenlog sh-helper`
-
-Print bash script that contains shell helper functions. Install them with:
-
+The following are shell *functions* that can be installed with:
 ```
 . <(zenlog sh-helper)
 ```
 
 The included functions are:
 
-`in_zenlog` returns success status when the shell is in a Zenlog session.
+* `in_zenlog` returns success status when the shell is in a Zenlog session.
+
+This is actually an alias to `zenlog in-zenlog`.
 
 Example:
 ```
-$ in_enlog && echo "in-zenlog!"
+$ in_zenlog && echo "in-zenlog!"
+```
+
+This is the same thing as:
+```
+$ zenlog in-zenlog && echo "in-zenlog!"
 ```
 
 
-`184 COMMAND` executes a command without logging.
+* `184` executes a command passed as an argument without logging.
 
 Example: This will print the content of the `a_huge_file_that_not_worth_logging` file without logging it.
 ```
 $ 184 cat a_huge_file_that_not_worth_logging
 ```
 
-`186 COMMAND` executes a command with logging, even if a command contains NO_LOG commands. ("man" is included in the default no log list, so normally the output won't be logged. See `ZENLOG_ALWAYS_NO_LOG_COMMANDS` below.)
+* `186` executes a command with logging, even if a command contains NO_LOG commands. ("man" is included in the default no log list, so normally the output won't be logged. See `ZENLOG_ALWAYS_NO_LOG_COMMANDS` below.)
 
 Example: This runs `man bash` with logging it.
 ```
 $ 186 man bash
 ```
 
-`bash_last_command` shows the most recent command line. Intended to be used with `start-command`. See [the sample bash config file](shell/zenlog.bash).
+* `bash_last_command` shows the most recent command line. Intended to be used with `start-command`. See [the sample bash config file](shell/zenlog.bash).
 
+
+### Other commands
 
 * `zenlog purge-log -p DAYS` Remove logs older than DAYS days.
 
@@ -248,7 +256,12 @@ EOF
 
  * v4 -- v2 was still ugly and hard to improve, so finally rewrote in Ruby. This version has a lot better command line parser, for example, which is used to detect command names in a command line. v2's parser was very hacky so it could mis-parse.
 
+# Caveats
+
+* It is not recommended to set zenlog as a login shell, because once something goes wrong, it'd be very hard to recover. Instead, it's recommended to launch it from a terminal program as a custom start command. This way, if Zenlog stops working for whatever reason, you'll be able to switch to a normal shell just by changing the terminal app's setting.
+
 # See also
 
 ## A2H ANSI to HTML converter
 [A2H](https://github.com/omakoto/a2h-rs) can be used to convert RAW log files into HTML.
+
