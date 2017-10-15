@@ -59,9 +59,7 @@ The `zenlog.bash` script also sets up a hotkey `ALT+1` to open the last log.
 
 Also if you have [A2H](https://github.com/omakoto/a2h-rs) installed, `ALT+2` will open the last log in Google Chrome (change it with `$ZENLOG_RAW_VIEWER`) *with colors*.
 
-[Sample HTML output](res/zenlog-sample.html)
-
-<img src="res/zenlog-cap.png" style="width:400px">
+<img src="res/zenlog-cap.png" width="50%">
 
 ## Log directory structure
 
