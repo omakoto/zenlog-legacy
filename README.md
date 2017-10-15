@@ -61,6 +61,8 @@ Also if you have [A2H](https://github.com/omakoto/a2h-rs) installed, `ALT+2` wil
 
 [Sample HTML output](res/zenlog-sample.html)
 
+![Alt text](res/zenlog-cap.png)
+
 ## Log directory structure
 
 For each command, Zenlog creates two log files. One is called "RAW", which is the original output. However because command output often contains colors, RAW log files are hard to read on an editor and also search. So Zenlog also creates anther log file "SAN" (SANitized), which has most standard ANSI sequences removed.
