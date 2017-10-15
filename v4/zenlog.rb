@@ -43,9 +43,9 @@ module ZenCore
   def debug(*args, &block)
     return false unless DEBUG
 
-    say $is_logger ? "\x1b[0m\x1b[32m" : "\x1b[0m\x1b[31m"
+    say $is_logger ? "\e[0m\e[32m" : "\e[0m\e[31m"
     say args, &block
-    say "\x1b[0m" # Reset
+    say "\e[0m" # Reset
     return true
   end
 
@@ -114,6 +114,15 @@ module BuiltIns
   STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
   STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
 
+  CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
+
+  def io_error_okay(&block)
+    begin
+      block.call()
+    rescue SystemCallError
+    end
+  end
+
   def in_zenlog
     tty = get_tty
     return (tty != nil) && (ENV[ZENLOG_TTY] == get_tty)
@@ -130,20 +139,22 @@ module BuiltIns
   end
 
   def with_logger(&block)
-      open(ENV[ZENLOG_LOGGER_OUT], "w", &block)
+    ofile = ENV[ZENLOG_LOGGER_OUT]
+    File.writable?(ofile) && open(ofile, "w", &block)
   end
 
   # Tell zenlog to start logging for a command line.
   def start_command(*command_line_words)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
-
     if in_zenlog
-      # Send "command start" to the logger directly.
-      with_logger do |out|
-        out.print(
-            COMMAND_START_MARKER,
-            command_line_words.join(" ").gsub(/\r*\n/, " "),
-            "\n")
+      io_error_okay do
+        # Send "command start" to the logger directly.
+        with_logger do |out|
+          out.print(
+              COMMAND_START_MARKER,
+              command_line_words.join(" ").gsub(/\r*\n/, " "),
+              "\n")
+        end
       end
     end
     return true
@@ -153,19 +164,22 @@ module BuiltIns
   def stop_log
     debug "[Stop log]\n"
     if in_zenlog
-      # Send "stop log" to the logger directly.
-      fingerprint = Time.now.to_f.to_s
-      with_logger do |out|
-        out.print(STOP_LOG_MARKER, fingerprint, "\n")
-      end
+      io_error_okay do
+        # Send "stop log" to the logger directly.
+        fingerprint = Time.now.to_f.to_s
+        with_logger do |out|
+          out.print(STOP_LOG_MARKER, fingerprint, "\n")
+        end
 
-      # Wait for ack to make sure the log file was actually written.
-      ack = get_stop_log_ack(fingerprint)
-      open ENV[ZENLOG_COMMAND_IN], "r" do |i|
-        i.each_line do |line|
-          if line == ack
-            debug "[Ack received]\n"
-            break
+        # Wait for ack to make sure the log file was actually written.
+        ack = get_stop_log_ack(fingerprint)
+        ifile = ENV[ZENLOG_COMMAND_IN]
+        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
+          i.each_line do |line|
+            if line == ack
+              debug "[Ack received]\n"
+              break
+            end
           end
         end
       end
@@ -236,6 +250,14 @@ module BuiltIns
   # Create an ACK marker with a fingerprint.
   def get_stop_log_ack(stop_log_fingerprint)
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
+  end
+
+  def get_child_finished_marker()
+    return CHILD_FINISHED_MARKER + "\n"
+  end
+
+  def match_child_finished_marker(str)
+    return str.include? CHILD_FINISHED_MARKER
   end
 
   def ensure_log_dir
@@ -323,9 +345,10 @@ class ZenLogger
 
   MAX_PREV_LINKS = 10
 
-  def initialize(log_dir, pid, logger_in, command_out)
+  def initialize(log_dir, child_pid, logger_in, command_out)
     @log_dir = log_dir
-    @pid = pid
+    @pid = $$
+    @child_pid = child_pid
     @logger_in = logger_in
     @command_out = command_out
     @prefix_commands = ENV[ZENLOG_PREFIX_COMMANDS] || \
@@ -469,9 +492,24 @@ class ZenLogger
     @san = nil
   end
 
+  # This is called when
+  def on_child_finished()
+    child_status = Process.waitpid2(@child_pid)[1].exitstatus
+    stop_logging()
+    @logger_in.close()
+    @command_out.close()
+
+    if child_status != 0
+      say "\e[0m\e[31mZenlog: Child stopped with error status #{child_status}," +
+          " starting bash instead.\e[0m\n"
+      exec "/bin/bash"
+    end
+  end
+
   def start
     begin
       @logger_in.each_line do |line|
+        # Command started? Then start logging.
         command = BuiltIns.match_command_start(line)
         if command != nil
           debug {"Command started: \"#{command}\"\n"}
@@ -480,6 +518,7 @@ class ZenLogger
           next
         end
 
+        # Command stopped?
         last_line, fingerprint = BuiltIns.match_stop_log(line)
         if fingerprint
           debug {"Command finished: #{fingerprint}\n"}
@@ -487,6 +526,11 @@ class ZenLogger
           stop_logging
           @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
           next
+        end
+
+        # Child process finished?
+        if BuiltIns.match_child_finished_marker(line)
+          on_child_finished
         end
 
         write_log line
@@ -549,9 +593,9 @@ class ZenStarter
 
     $stdout.flush
     $stderr.flush
-    pid = Process.fork
+    child_pid = Process.fork
 
-    if pid == nil
+    if child_pid == nil
       # Child, which runs the shell.
       debug {"Child: PID=#{$$}\n"}
 
@@ -562,36 +606,36 @@ class ZenStarter
       logger_out_name = "/proc/#{$$}/fd/#{FD_LOGGER_OUT}"
       command_in_name = "/proc/#{$$}/fd/#{FD_COMMAND_IN}"
 
+      # Note we can't use exec for start_command because if we do that
+      # "||" won't work.
       command = [
           "script",
           "-fqc",
-          "export #{ZENLOG_SHELL_PID}=#{$$};" +
-          "export #{ZENLOG_LOGGER_OUT}=#{shescape logger_out_name};" +
-          "export #{ZENLOG_COMMAND_IN}=#{shescape command_in_name};" +
-          "export #{ZENLOG_TTY}=$(tty);" +
-          "exec #{@start_command}", # TODO Shescape?
+          "#{ZENLOG_SHELL_PID}=#{$$} " +
+          "#{ZENLOG_LOGGER_OUT}=#{shescape logger_out_name} " +
+          "#{ZENLOG_COMMAND_IN}=#{shescape command_in_name} " +
+          "#{ZENLOG_TTY}=$(tty) " +
+          "#{@start_command} " + # TODO Shescape?
+          "|| echo 'Zenlog: unable to start #{@start_command}, starting bash instead.' " +
+          "&& exec /bin/bash",
           logger_out_name,
           FD_LOGGER_OUT => @logger_out,
           FD_COMMAND_IN => @command_in]
       debug {"Starting: #{command}\n"}
       exec *command
-
-      say "Failed to execute #{@start_command}: Starting bash...\n"
-      exec "/bin/bash"
       exit 127
     else
       # Parent, which is the logger.
       $is_logger = true
       debug {"Parent\n"}
-      @logger_out.close()
       @command_in.close()
 
       Signal.trap("CHLD") do
-        @logger_in.close()
-        @command_out.close()
+        @logger_out.print(BuiltIns.get_child_finished_marker)
+        @logger_out.close()
       end
 
-      ZenLogger.new(@log_dir, $$, @logger_in, @command_out).start
+      ZenLogger.new(@log_dir, child_pid, @logger_in, @command_out).start
 
       debug {"Logger process finishing...\n"}
       exit 0
