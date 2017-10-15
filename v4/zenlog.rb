@@ -762,9 +762,8 @@ class Main
   def maybe_exec_external_command(command, args)
     # Look for a "zenlog-subcommand" executable file, in the the zenlog
     # install directory, or the PATH directories.
-    my_file = File.realpath(__FILE__)
-    debug {"my_file=#{my_file}\n"}
-    my_path = File.dirname(my_file)
+    debug {"MY_REALPATH=#{MY_REALPATH}\n"}
+    my_path = File.dirname(MY_REALPATH)
 
     ext_name = "zenlog-" + command.gsub('_', '-')
 
