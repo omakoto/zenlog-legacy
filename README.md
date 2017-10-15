@@ -61,7 +61,7 @@ Also if you have [A2H](https://github.com/omakoto/a2h-rs) installed, `ALT+2` wil
 
 [Sample HTML output](res/zenlog-sample.html)
 
-![Alt text](res/zenlog-cap.png | width=884)
+<img src="res/zenlog-cap.png" style="width:400px">
 
 ## Log directory structure
 
