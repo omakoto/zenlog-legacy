@@ -35,15 +35,31 @@ source PATH-TO-THIS-FILE/zenlog.bash
 
 (Note this will overwrite `P0` and `PROMPT_COMMAND`, so if you don't like it, look at the script and do whatever you want.)
 
-Then, run the `zelog` command to start a new Zenlog session. By default, log files are stored in `$HOME/zenlog/`.
-
 ### Using other shells
 
 Any shell should work, as long as it supports some sort of "pre-exec" and "post-exec" hooks.
 
-### Optional GEM installation
+### Optional rubygem installation
 
 Zenlog needs to know the ttyname of the current terminal, and it uses ps(1) to get it by default. However if the [ttyname](https://github.com/samuelkadolph/ruby-ttyname) gem is installed, Zenlog uses it, which is a bit faster.
+
+## Using Zenlog
+
+Once you setup your `.bashrc`, just run `zenlog` to start a new session. As the [Caveats](#caveats) section describes, it's not recommended to use zenlog as a login shell. Just change your terminal app's setting and use zenlog as a custom startup program.
+
+Once in zenlog, output of all commands are stored under `$ZENLOG_DIR` (`$HOME/zenlog/` is the default).
+
+### Opening log files with commands
+
+Try running `ls -l $HOME` and then `zenlog open-last-log`, which should invoke less (`$ZENLOG_VIEWER`) with the output of the `ls` command.
+
+### Opening log files with hotkeys
+
+The `zenlog.bash` script also sets up a hotkey `ALT+1` to open the last log.
+
+Also if you have [A2H](https://github.com/omakoto/a2h-rs) installed, `ALT+2` will open the last log in Google Chrome (change it with `$ZENLOG_RAW_VIEWER`) *with colors*.
+
+[Sample HTML output](res/zenlog-sample.html)
 
 ## Log directory structure
 
