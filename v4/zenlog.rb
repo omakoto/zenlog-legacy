@@ -642,12 +642,6 @@ class Main
   end
 
   def main(args)
-    # Help?
-    if args[0] =~ /^(-h|--help)$/
-      help
-      exit 0
-    end
-
     # Start a new zenlog session?
     if args.length == 0
       fail_if_in_zenlog
