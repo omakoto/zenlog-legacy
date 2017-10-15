@@ -204,6 +204,10 @@ $ 186 man bash
 
 * `zenlog purge-log -p DAYS` Remove logs older than DAYS days.
 
+* `zenlog du [du options]` Run du(1) on the log directory.
+
+* `zenlog free-space` Show the free space size of the disk that contains the log directory in bytes.
+
 
 ## Configuration
 
@@ -260,8 +264,11 @@ EOF
 
 * It is not recommended to set zenlog as a login shell, because once something goes wrong, it'd be very hard to recover. Instead, it's recommended to launch it from a terminal program as a custom start command. This way, if Zenlog stops working for whatever reason, you'll be able to switch to a normal shell just by changing the terminal app's setting.
 
-# See also
+# Relevant work
 
 ## A2H ANSI to HTML converter
 [A2H](https://github.com/omakoto/a2h-rs) can be used to convert RAW log files into HTML.
 
+## Compromise zenlog completion
+
+[Compromise](https://github.com/omakoto/compromise) has [zenlog shell completion](https://github.com/omakoto/compromise/blob/master/compromise-zenlog.rb) (WIP).
