@@ -117,36 +117,37 @@ module BuiltIns
   CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
 
   private
-  def io_error_okay(&block)
+  def self.io_error_okay(&block)
     begin
       block.call()
-    rescue SystemCallError
+    rescue SystemCallError => e
+      say "zenlog: Error #{e}\n" if debug
     end
   end
 
   # Subcommand: zenlog in-zenlog
   public
-  def in_zenlog
+  def self.in_zenlog
     tty = get_tty
     return (tty != nil) && (ENV[ZENLOG_TTY] == get_tty)
   end
 
   # Subcommand: zenlog fail-if-in-zenlog
   public
-  def fail_if_in_zenlog
+  def self.fail_if_in_zenlog
     die 'already in zenlog.' if in_zenlog
     return true
   end
 
   # Subcommand: fail-unless-in-zenlog
   public
-  def fail_unless_in_zenlog
+  def self.fail_unless_in_zenlog
     die 'not in zenlog.' unless in_zenlog
     return true
   end
 
   private
-  def with_logger(&block)
+  def self.with_logger(&block)
     ofile = ENV[ZENLOG_LOGGER_OUT]
     File.writable?(ofile) && open(ofile, "w", &block)
   end
@@ -154,7 +155,7 @@ module BuiltIns
   # Subcommand: zenlog start-command
   # Tell zenlog to start logging for a command line.
   private
-  def start_command(*command_line_words)
+  def self.start_command(*command_line_words)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
     if in_zenlog
       io_error_okay do
@@ -173,7 +174,7 @@ module BuiltIns
   # Subcommand: zenlog stop-log
   # Tell zenlog to stop logging the current command.
   private
-  def stop_log
+  def self.stop_log
     debug "[Stop log]\n"
     if in_zenlog
       io_error_okay do
@@ -201,7 +202,7 @@ module BuiltIns
   # Subcommand:
   # Print the outer TTY device file.
   private
-  def outer_tty
+  def self.outer_tty
     if in_zenlog
       puts ENV[ZENLOG_OUTER_TTY]
       return true
@@ -213,7 +214,7 @@ module BuiltIns
   # Subcommand:
   # Print the pipe filename to the logger
   private
-  def logger_pipe
+  def self.logger_pipe
     if in_zenlog
       puts ENV[ZENLOG_LOGGER_OUT]
       return true
@@ -225,19 +226,19 @@ module BuiltIns
   # Subcommand:
   # Eat from stdin and write to ZENLOG_OUTER_TTY
   private
-  def write_to_outer
+  def self.write_to_outer
     return forward_stdin_to_file ENV[ZENLOG_OUTER_TTY], need_cr:true
   end
 
   # Subcommand:
   # Eat from stdin and write to ZENLOG_LOGGER_OUT
   private
-  def write_to_logger
+  def self.write_to_logger
     return forward_stdin_to_file ENV[ZENLOG_LOGGER_OUT], need_cr:false
   end
 
   private
-  def forward_stdin_to_file(file, need_cr:false)
+  def self.forward_stdin_to_file(file, need_cr:false)
     out = in_zenlog ? (open file, "w") : $stdout
     $stdin.each_line do |line|
       line.sub!(/\r*\n$/, "\r\n") if need_cr
@@ -248,7 +249,7 @@ module BuiltIns
 
   # Find substring in str, and return pre and post strings. (or nil)
   private
-  def find_marker(str, substring)
+  def self.find_marker(str, substring)
     pos = str.index(substring)
     return nil unless pos
     return str[0, pos], str[pos + substring.length .. -1]
@@ -257,7 +258,7 @@ module BuiltIns
   # Called by the logger to see if an incoming line is of a command start
   # marker, and if so, returns the command line.
   public
-  def match_command_start(in_line)
+  def self.match_command_start(in_line)
     matched = find_marker(in_line, COMMAND_START_MARKER)
     return matched ? matched[1] : nil
   end
@@ -267,29 +268,29 @@ module BuiltIns
   # in case the command last output line doesn't end with a NL) and a
   # fingerprint, which needs to be sent back with an ACK.
   public
-  def match_stop_log(in_line)
+  def self.match_stop_log(in_line)
     return find_marker(in_line, STOP_LOG_MARKER)
   end
 
   # Create an ACK marker with a fingerprint.
   public
-  def get_stop_log_ack(stop_log_fingerprint)
+  def self.get_stop_log_ack(stop_log_fingerprint)
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
   end
 
   public
-  def get_child_finished_marker()
+  def self.get_child_finished_marker()
     return CHILD_FINISHED_MARKER + "\n"
   end
 
   public
-  def match_child_finished_marker(str)
+  def self.match_child_finished_marker(str)
     return str.include? CHILD_FINISHED_MARKER
   end
 
   # Subcommand
   private
-  def ensure_log_dir
+  def self.ensure_log_dir
     log_dir = ENV[ZENLOG_DIR]
     if !log_dir
       die "#{ZENLOG_DIR} not set."
@@ -303,7 +304,7 @@ module BuiltIns
 
   # Subcommand helper.
   public
-  def history(raw, pid, nth)
+  def self.history(raw, pid, nth)
     dir = ENV[ZENLOG_DIR] + "/pids/" + pid.to_s
     debug {"Log dir: #{dir}\n"}
     exit false unless File.directory? dir
@@ -326,7 +327,7 @@ module BuiltIns
   # command doesn't exist.
   # We don't just use "respond_to?" to avoid leaking ruby functions.
   public
-  def get_builtin_command(command)
+  def self.get_builtin_command(command)
     case command
     when "in_zenlog"
       return ->(*args){in_zenlog}
@@ -363,8 +364,6 @@ module BuiltIns
     return nil
   end
 end
-
-include BuiltIns
 
 #-----------------------------------------------------------
 # Sits in the background and writes log.
@@ -536,15 +535,21 @@ class ZenLogger
   private
   def on_child_finished()
     child_status = Process.waitpid2(@child_pid)[1].exitstatus
-    stop_logging()
-    @logger_in.close()
-    @command_out.close()
+
+    clean_up()
 
     if child_status != 0
       say "\e[0m\e[31mZenlog: Child stopped with error status #{child_status}," +
           " starting bash instead.\e[0m\n"
       exec "/bin/bash"
     end
+  end
+
+  private
+  def clean_up
+    stop_logging()
+    @logger_in.close()
+    @command_out.close()
   end
 
   # Main logger loop.
@@ -590,9 +595,10 @@ class ZenLogger
 
         write_log line
       end
-    rescue IOError
-      # "closed stream" is okay. It's just a broken pipe.
+    rescue IOError => e
+      say "zenlog: Error #{e}\n" if debug
     end
+    clean_up()
   end
 end
 
@@ -650,6 +656,8 @@ class ZenStarter
   # Start a new zenlog session.
   public
   def start_zenlog_session()
+    BuiltIns.fail_if_in_zenlog
+
     init()
 
     $stdout.flush
@@ -709,18 +717,10 @@ end
 # Entry point.
 #-----------------------------------------------------------
 class Main
-  def help()
-    print <<~'EOF'
-
-        Zenlog: log all command output
-
-        EOF
-  end
-
   def maybe_exec_builtin_command(command, args)
     builtin = BuiltIns.get_builtin_command command.gsub('-', '_')
     if builtin
-      exit builtin.call(*args) ? 0 : 1
+      exit(builtin.call(*args) ? 0 : 1)
     end
   end
 
@@ -737,7 +737,7 @@ class Main
       file = dir + "/" + ext_name
       if File.executable? file
         debug {"Found #{file}\n"}
-        exec file, *args
+        exec(file, *args)
       end
     end
   end
@@ -746,8 +746,7 @@ class Main
   def main(args)
     # Start a new zenlog session?
     if args.length == 0
-      fail_if_in_zenlog
-      exit ZenStarter.new(rc_file:RC_FILE).start_zenlog_session ? 0 : 1
+      exit(ZenStarter.new(rc_file:RC_FILE).start_zenlog_session ? 0 : 1)
     end
 
     # Otherwise, if there's more than one argument, run a subcommand.
@@ -762,6 +761,6 @@ class Main
   end
 end
 
-if __FILE__ == $0
+if File.realpath(__FILE__) == File.realpath($0)
   Main.new.main(ARGV)
 end

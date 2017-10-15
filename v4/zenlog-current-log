@@ -4,7 +4,7 @@ require 'pathname'
 require 'optionparser'
 require_relative 'zenlog'
 
-fail_unless_in_zenlog
+BuiltIns.fail_unless_in_zenlog
 
 raw = false
 nth = -1
