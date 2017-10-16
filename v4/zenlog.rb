@@ -112,6 +112,7 @@ module ZenCore
 
   def start_emergency_shell()
     ENV.delete_if {|k, v| k.start_with? ZENLOG_PREFIX}
+    say "Starting bash instead...\n"
     exec "/bin/bash"
   end
 end
@@ -345,7 +346,7 @@ module BuiltIns
     begin
       exec *args
     rescue
-      say "zenlog: failed to start #{args.join(" ")}; starting shell instead.\n"
+      say "zenlog: failed to start #{args.join(" ")}.\n"
       start_emergency_shell
     end
   end
@@ -569,8 +570,7 @@ class ZenLogger
     clean_up()
 
     if child_status != 0
-      say "\e[0m\e[31mZenlog: Child stopped with error status #{child_status}," +
-          " starting bash instead.\e[0m\n"
+      say "\e[0m\e[31mZenlog: Child stopped with error status #{child_status}.\e[0m\n"
       start_emergency_shell
     end
   end
@@ -690,6 +690,12 @@ class ZenStarter
 
     init()
 
+    if !Dir.exist? @log_dir
+      say "zenlog: #{@log_dir} doesn't exist.\n"
+      @log_dir
+      start_emergency_shell
+    end
+
     $stdout.flush
     $stderr.flush
     child_pid = Process.fork
@@ -782,6 +788,7 @@ class Main
     # Start a new zenlog session?
     if args.length == 0
       if no_zenlog?
+        say "no-zenlog mode\n"
         start_emergency_shell
       end
       exit(ZenStarter.new(rc_file:RC_FILE).start_zenlog_session ? 0 : 1)
