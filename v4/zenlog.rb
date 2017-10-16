@@ -163,7 +163,12 @@ module BuiltIns
   private
   def self.with_logger(&block)
     ofile = ENV[ZENLOG_LOGGER_OUT]
-    File.writable?(ofile) && open(ofile, "w", &block)
+    if File.writable?(ofile)
+      open(ofile, "w", &block)
+      return true
+    else
+      return false
+    end
   end
 
   # Subcommand: zenlog start-command
@@ -194,8 +199,11 @@ module BuiltIns
       io_error_okay do
         # Send "stop log" to the logger directly.
         fingerprint = Time.now.to_f.to_s
-        with_logger do |out|
+        zenlog_working = with_logger do |out|
           out.print(STOP_LOG_MARKER, fingerprint, "\n")
+        end
+        if !zenlog_working
+          return
         end
 
         # Wait for ack to make sure the log file was actually written.
