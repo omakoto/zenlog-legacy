@@ -49,6 +49,14 @@ class TestShesplit < Test::Unit::TestCase
   end
 end
 
+class TestShescapeMulti < Test::Unit::TestCase
+  def test_simple
+    assert_equal("", shescape_multi(""))
+    assert_equal("a bc def", shescape_multi("a bc  def"))
+    assert_equal("a 'b  c' def", shescape_multi("a \"b  c\"  def"))
+  end
+end
+
 class TestCommandLine < Test::Unit::TestCase
   def test_tokenize
     assert_equal([], CommandLine.new("").tokens)

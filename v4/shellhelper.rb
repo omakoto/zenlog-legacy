@@ -137,6 +137,20 @@ def _unescape_clike(arg, ret, pos)
   return [ret, pos]
 end
 
+#-----------------------------------------------------------
+# Split an input string into words and then apply shescape
+# on each word.
+#-----------------------------------------------------------
+def shescape_multi(arg)
+  return shsplit(arg).map {|token|
+    shescape(unshescape(token))
+  }.join(' ')
+end
+
+#-----------------------------------------------------------
+# Split a string into tokens with a shell-like tokenizer.
+# Note each token are *not* unescaped.
+#-----------------------------------------------------------
 def shsplit(arg)
   ret = []
   c = CommandLine.new(arg)
@@ -146,6 +160,10 @@ def shsplit(arg)
   return ret
 end
 
+#-----------------------------------------------------------
+# Returns true if a string looks like a shell special
+# operator such as > and <.
+#-----------------------------------------------------------
 def is_shell_op(arg)
   return arg =~ /^[\;\<\>\|\&\!\(\)]+$/
 end

@@ -705,8 +705,9 @@ class ZenStarter
       logger_out_name = "/proc/#{$$}/fd/#{FD_LOGGER_OUT}"
       command_in_name = "/proc/#{$$}/fd/#{FD_COMMAND_IN}"
 
-      # Note we can't use exec for start_command because if we do that
-      # "||" won't work.
+      # Note we can't use exec directly for start_command because
+      # then we wouldn't be able to catch a failure.
+      # Instead we use exec_or_emergency_shell.
       command = [
           "script",
           "-fqc",
@@ -714,8 +715,8 @@ class ZenStarter
           "#{ZENLOG_LOGGER_OUT}=#{shescape logger_out_name} " +
           "#{ZENLOG_COMMAND_IN}=#{shescape command_in_name} " +
           "#{ZENLOG_TTY}=$(tty) " +
-          # TODO The below code needs escaping, but for each token.
-          "exec '#{MY_REALPATH}' exec_or_emergency_shell #{@start_command}",
+          "exec '#{MY_REALPATH}' exec_or_emergency_shell " +
+          "#{shescape_multi @start_command}",
           logger_out_name,
           FD_LOGGER_OUT => @logger_out,
           FD_COMMAND_IN => @command_in]
