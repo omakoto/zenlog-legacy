@@ -20,6 +20,7 @@ BEGIN {
 }
 
 require 'fileutils'
+require 'timeout'
 require_relative 'shellhelper'
 
 #-----------------------------------------------------------
@@ -61,7 +62,7 @@ module ZenCore
   def say(*args, &block)
     message = args.join('') + (block ? block.call() : '')
     message.gsub!(/\r*\n/, "\r\n") if $is_logger
-    $stdout.print message
+    $stderr.print message
   end
 
   def debug(*args, &block)
@@ -190,7 +191,7 @@ module BuiltIns
   # Subcommand: zenlog start-command
   # Tell zenlog to start logging for a command line.
   private
-  def self.start_command(*command_line_words)
+  def self.start_command(command_line_words)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
     if in_zenlog
       io_error_okay do
@@ -209,9 +210,12 @@ module BuiltIns
   # Subcommand: zenlog stop-log
   # Tell zenlog to stop logging the current command.
   private
-  def self.stop_log
+  def self.stop_log(args)
     debug "[Stop log]\n"
     if in_zenlog
+      # If "-n" is passed, print the number of lines in the log.
+      want_lines = args.include? "-n"
+
       io_error_okay do
         # Send "stop log" to the logger directly.
         fingerprint = Time.now.to_f.to_s
@@ -223,14 +227,23 @@ module BuiltIns
         end
 
         # Wait for ack to make sure the log file was actually written.
-        ack = get_stop_log_ack(fingerprint)
+        ack = STOP_LOG_ACK_MARKER + fingerprint + ":"
         ifile = ENV[ZENLOG_COMMAND_IN]
         File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-          i.each_line do |line|
-            if line == ack
-              debug "[Ack received]\n"
-              break
+          begin
+            Timeout::timeout(5) do
+              i.each_line do |line|
+                # say ">#{line}\n"
+                if line.start_with? ack
+                  debug "[Ack received]\n"
+                  lines = line[ack.length..-1].chomp
+                  print lines, "\n" if want_lines
+                  break
+                end
+              end
             end
+          rescue Timeout::Error
+            say "zenlog: Timed out waiting for ACK from logger.\n"
           end
         end
       end
@@ -290,7 +303,7 @@ module BuiltIns
   def self.find_marker(str, substring)
     pos = str.index(substring)
     return nil unless pos
-    return str[0, pos], str[pos + substring.length .. -1]
+    return str[0, pos], str[pos + substring.length .. -1].chomp
   end
 
   # Called by the logger to see if an incoming line is of a command start
@@ -312,8 +325,8 @@ module BuiltIns
 
   # Create an ACK marker with a fingerprint.
   public
-  def self.get_stop_log_ack(stop_log_fingerprint)
-    return STOP_LOG_ACK_MARKER + stop_log_fingerprint + "\n"
+  def self.get_stop_log_ack(stop_log_fingerprint, log_lines)
+    return STOP_LOG_ACK_MARKER + stop_log_fingerprint + ":" + (log_lines || 0).to_s + "\n"
   end
 
   public
@@ -391,10 +404,10 @@ module BuiltIns
       return ->(*args){fail_unless_in_zenlog}
 
     when "start_command"
-      return ->(*args){start_command args}
+      return ->(*args){start_command(args)}
 
     when "stop_log"
-      return ->(*args){stop_log}
+      return ->(*args){stop_log(args)}
 
     when "outer_tty"
       return ->(*args) {outer_tty}
@@ -565,6 +578,8 @@ class ZenLogger
     end
 
     write_log "\$ \e[1;3;4;33m#{command_line}\e[0m\n"
+    @num_lines_written = 0
+
     if no_log
       write_log "[omitted]\n"
       stop_logging
@@ -574,7 +589,10 @@ class ZenLogger
 
   private
   def write_log(line)
-    @raw.print(line) if @raw
+    if @raw
+      @raw.print(line)
+      @num_lines_written += 1
+    end
     @san.print(sanitize(line)) if @san
   end
 
@@ -611,6 +629,8 @@ class ZenLogger
   def main_loop
     begin
       in_command = false
+      @num_lines_written = 0
+
       @logger_in.each_line do |line|
         # Command started? Then start logging.
         if !in_command
@@ -633,12 +653,13 @@ class ZenLogger
 
             in_command = false
 
-            write_log(last_line)
+            write_log(last_line) if last_line.to_s != ""
 
             stop_logging
           end
           # Note we always need to return ACK, even if not running a command.
-          @command_out.print(BuiltIns.get_stop_log_ack(fingerprint))
+          @command_out.print(BuiltIns.get_stop_log_ack(fingerprint,
+              @num_lines_written))
           next
         end
 
