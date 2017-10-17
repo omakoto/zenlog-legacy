@@ -468,12 +468,16 @@ class ZenLogger
 
   private
   def create_prev_links(full_dir_name, link_name, log_file_name)
-    MAX_PREV_LINKS.downto(2) do |n|
-      from = (full_dir_name + "/" + (link_name * (n - 1)))
-      to   = full_dir_name + "/" + (link_name * n)
-      FileUtils.mv(from, to, {force:true}) if File.exist? from
+    begin
+      MAX_PREV_LINKS.downto(2) do |n|
+        from = (full_dir_name + "/" + (link_name * (n - 1)))
+        to   = full_dir_name + "/" + (link_name * n)
+        FileUtils.mv(from, to, {force:true}) if File.exist? from
+      end
+      FileUtils.ln_sf(log_file_name, full_dir_name + "/" + link_name)
+    rescue SystemCallError => e
+      say "zenlog: failed to create a symlink: #{e}\n"
     end
-    FileUtils.ln_s(log_file_name, full_dir_name + "/" + link_name)
   end
 
   private
@@ -483,12 +487,16 @@ class ZenLogger
     full_dir_name = (@log_dir + "/" + parent_dir + "/" + dir + "/" + type +
         "/" + now.strftime('%Y/%m/%d')).gsub(%r!/+!, "/")
 
-    FileUtils.mkdir_p(full_dir_name)
+    begin
+      FileUtils.mkdir_p(full_dir_name)
 
-    FileUtils.ln_s(log_file_name,
-        full_dir_name + "/" + log_file_name.sub(/^.*\//, ""))
+      FileUtils.ln_sf(log_file_name,
+          full_dir_name + "/" + log_file_name.sub(/^.*\//, ""))
 
-    create_prev_links(@log_dir + "/" + parent_dir + "/" + dir, link_name, log_file_name)
+      create_prev_links(@log_dir + "/" + parent_dir + "/" + dir, link_name, log_file_name)
+    rescue SystemCallError => e
+      say "zenlog: failed to create a symlink: #{e}\n"
+    end
   end
 
   # Start logging for a command.
