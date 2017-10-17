@@ -6,13 +6,16 @@ BEGIN {
   MY_REALPATH = File.realpath(__FILE__)
   STARTED_AS_SCRIPT = MY_REALPATH == File.realpath($0)
 
-  $main_started = false
-
-  if STARTED_AS_SCRIPT
+  if STARTED_AS_SCRIPT && ARGV.length == 0
+    # Do it only when requested to start a new session.
     at_exit do
-      if !$main_started && ARGV.length == 0
-        puts "zenlog: Unable to start a new session. " +
-            "Starting bash instead."
+      if $!.nil? || $!.is_a?(SystemExit) && $!.success?
+        # Success, just finish.
+      else
+        # Logger failed unexpectedly.
+        $stderr.puts "zenlog: #{$!}\r"
+        $stderr.puts "zenlog: Unable to start a new session. " +
+            "Starting bash instead.\r"
         exec "/bin/bash"
       end
     end
@@ -830,8 +833,6 @@ class Main
 
   # External entry point.
   def main(args)
-    $main_started = true
-
     # Start a new zenlog session?
     if args.length == 0
       if no_zenlog?
