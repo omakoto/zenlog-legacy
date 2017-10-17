@@ -1,14 +1,30 @@
 #!/usr/bin/env ruby
 $VERBOSE = true
 
+# Detect crash and start bash instead.
+BEGIN {
+  MY_REALPATH = File.realpath(__FILE__)
+  STARTED_AS_SCRIPT = MY_REALPATH == File.realpath($0)
+
+  $main_started = false
+
+  if STARTED_AS_SCRIPT
+    at_exit do
+      if !$main_started && ARGV.length == 0
+        puts "zenlog: Unable to start a new session. " +
+            "Starting bash instead."
+        exec "/bin/bash"
+      end
+    end
+  end
+}
+
 require 'fileutils'
 require_relative 'shellhelper'
 
 #-----------------------------------------------------------
 # Constants.
 #-----------------------------------------------------------
-
-MY_REALPATH = File.realpath(__FILE__)
 
 # If this file exists all zenlog commands will be no-op, and
 # zenlog sessions won't start and instead always just runs the shell.
@@ -793,6 +809,8 @@ class Main
 
   # External entry point.
   def main(args)
+    $main_started = true
+
     # Start a new zenlog session?
     if args.length == 0
       if no_zenlog?
@@ -817,6 +835,6 @@ class Main
   end
 end
 
-if MY_REALPATH == File.realpath($0)
+if STARTED_AS_SCRIPT
   Main.new.main(ARGV)
 end
