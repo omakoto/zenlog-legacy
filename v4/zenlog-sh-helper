@@ -32,9 +32,9 @@ function bash_last_command() {
 function bash_dump_env() {
   {
     echo "PWD: $(pwd)"
-    echo "git HEAD: $(git rev-parse HEAD) $(git describe --contains --all HEAD)"
-    # env
-    declare -p
+    echo "git HEAD: $(git rev-parse HEAD) $(git rev-parse --abbrev-ref HEAD)"
+    env # dump environmental variables.
+    # declare -p # this dumps shell variables too, but also functions, and may be too big.
   } 2>/dev/null
 }
 
