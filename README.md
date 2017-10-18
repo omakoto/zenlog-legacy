@@ -67,9 +67,9 @@ Also if you have [A2H](https://github.com/omakoto/a2h-rs) installed, `ALT+2` wil
 
 ## Log directory structure
 
-For each command, Zenlog creates two log files. One is called "RAW", which is the original output. However because command output often contains colors, RAW log files are hard to read on an editor and also search. So Zenlog also creates anther log file "SAN" (SANitized), which has most standard ANSI sequences removed.
+For each command, Zenlog creates two two log files and an optional `ENV` log file. One is called "RAW", which is the original output. However because command output often contains colors, RAW log files are hard to read on an editor and also search. So Zenlog also creates anther log file "SAN" (SANitized), which has most standard ANSI sequences removed.
 
-SAN log files have names like this. Basically log filenames contain the timestam, the shortened command line, as well as the comment part in the command line if exists.
+SAN log files have names like the following. Basically log filenames contain the timestamp, the shortened command line, as well as the comment part in the command line if exists.
 ```
 /home/USER/zenlog/SAN/2017/10/14/14-25-10.778-15193_+ls_-l.log
 ```
@@ -104,7 +104,7 @@ To allow easier access to log files, Zenlog creates a lot of symlinks. (The idea
 
 So, for example, if you run the following command:
 ```
-$ cat /etc/fstab | sed '/^#/d' # fstab comments removed
+$ cat /etc/fstab | sed '/^#/d' # fstab with comments removed
 ```
 
 You'll get the regular SAN/RAW log files, as well as the following symlinks:
