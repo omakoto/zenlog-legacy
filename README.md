@@ -20,7 +20,7 @@ Since v2, Zenlog requires "pre-exec hook", which is `P0` that was added in Bash 
 
 Zenlog still uses special markers to pass the information to the logger process, but they're now directly written to the pipe via `/proc/PID/fd/n`, so they're no longer escape sequences.
 
-Zenlog now also uses another pipe to pass the information from the logger to the shell, which is use to wait until the last log file is closed by `zenlog stop_log`.
+Zenlog now also uses another pipe to pass the information from the logger to the shell, which is use to wait until the last log file is closed by `zenlog stop_log` to make sure the operation is synchronous.
 
 ## Quick start: install and setup (Bash)
 
