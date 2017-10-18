@@ -77,6 +77,8 @@ RAW log files have the exact same filename, except they're stored in the `RAW` d
 /home/USER/zenlog/RAW/2017/10/14/14-25-10.778-15193_+ls_-l.log
 ```
 
+Optionally, if `start-command-with-env` is used instead of `start-command` when starting a command, Zenlog will create `ENV` log files which captures meta information such as the command start time, finish time, status code, environmental variables, etc.
+
 To allow easier access to log files, Zenlog creates a lot of symlinks. (The idea came from [Tanlog](https://github.com/shinh/test/blob/master/tanlog.rb))
 
 ```
@@ -131,11 +133,20 @@ $ zenlog history
 
     Run this command in the pre-exec hook to have Zenlog start logging. COMMANDLINE can be obtained with `bash_last_command` which comes with `zenlog she-helper`, which is explained below.
 
-* `zenlog stop-log`
+* `zenlog start-command-with-env "$(bash_dump_env)" COMMANDLINE`
+
+    If this command is used instead of `start-command`, Zenlog will also create `ENV` log files which capture extra information such as command start time, finish time and shell/environmental variables. The first parameter can be the output of
+    the `bash_dump_env` command, which dumps the git current branch and the environmental variables, which is a shell function that's in `zenlog sh-helper`, but really any string can be passed as the first argument, and it'll be logged.
+
+* `zenlog stop-log [-n] [exit-status]`
 
     Run this command in the post-exec hook to have Zenlog stop logging.
 
     It is guaranteed that when this command returns, both SAN and RAW log files have been all written and closed. So, for example, counting the number of lines with `wc -l` is safe.
+
+    * If `-n` is given, this will print the number of lines in the last log file.
+    * If exit-status is given, it'll be written in the `ENV` log file.
+
 
 ### History commands
 
@@ -176,23 +187,12 @@ $ zenlog history -n 1
 
 ### Shell helper functions
 
-The following are shell *functions* that can be installed with:
+The following are *shell functions (not Zenlog subcommands)* that can be installed with the following command:
 ```
 . <(zenlog sh-helper)
 ```
 
 The included functions are:
-
-* `in_zenlog` returns success status when the shell is in a Zenlog session.
-
-    This is actually an alias to `zenlog in-zenlog`.
-
-    Example:
-```
-$ in_zenlog && echo "in-zenlog!"
-$ zenlog in-zenlog && echo "in-zenlog!"
-```
-
 
 * `184` executes a command passed as an argument without logging.
 
@@ -212,19 +212,23 @@ $ 186 man bash
 
 ### Scripting helper commands
 
+* `zenlog in_zenlog`
+
+    Return success status if in a zenlog session.
+
 * `zenlog fail_if_in_zenlog`
 
-    Return success status only if in a zenlog session.
+    Return success status only if in a zenlog session; otherwise it prints an error message.
 
 * `zenlog fail_unless_in_zenlog`
 
-    Return success status only if *not* in a zenlog session.
+    Return success status only if *not* in a zenlog session; otherwise it prints an error message.
 
 * `zenlog outer_tty`
 
     Print the external TTY name, which can be used to print something in the terminal without logging it.
 
-    *Note* if you write to the TTY directly, you'll have to explicitly use CRLF instead of LF. See the following example.
+    *Note* if you write to the TTY directly, you'll have to explicitly use CRLF instead of LF. Note the `-e` option and the end of line `\r` in the following example.
 
     Example:
 ```

@@ -9,11 +9,15 @@ BEGIN {
   if STARTED_AS_SCRIPT && ARGV.length == 0
     # Do it only when requested to start a new session.
     at_exit do
-      if $!.nil? || $!.is_a?(SystemExit) && $!.success?
+      error = $!
+      if error.nil? || error.is_a?(SystemExit) && error.success?
         # Success, just finish.
       else
         # Logger failed unexpectedly.
-        $stderr.puts "zenlog: #{$!}\r"
+        $stderr.puts "zenlog: #{error}\r"
+        error.backtrace_locations.each do |frame|
+          $stderr.print "    ", frame, "\r\n"
+        end
         $stderr.puts "zenlog: Unable to start a new session. " +
             "Starting bash instead.\r"
         exec "/bin/bash"
@@ -148,7 +152,11 @@ module BuiltIns
   STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
   STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
 
+  COMMAND_ARG_SEPARATOR = COMMAND_MARKER + 'arg:'
+
   CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
+
+  NEWLINE_REPLACEMENT = "\v"
 
   private
   def self.io_error_okay(&block)
@@ -194,7 +202,7 @@ module BuiltIns
   # Subcommand: zenlog start-command
   # Tell zenlog to start logging for a command line.
   private
-  def self.start_command(command_line_words)
+  def self.start_command(command_line_words, env:nil)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
     if in_zenlog
       io_error_okay do
@@ -202,12 +210,18 @@ module BuiltIns
         with_logger do |out|
           out.print(
               COMMAND_START_MARKER,
-              command_line_words.join(" ").gsub(/\r*\n/, " "),
-              "\n")
+              command_line_words.join(" ").gsub(/\r*\n/, " "))
+          out.print(COMMAND_ARG_SEPARATOR, env.gsub("\n", NEWLINE_REPLACEMENT)) if env
+          out.print("\n")
         end
       end
     end
     return true
+  end
+
+  public
+  def self.decode_env(env)
+    return env.gsub(NEWLINE_REPLACEMENT, "\n")
   end
 
   # Subcommand: zenlog stop-log
@@ -217,13 +231,17 @@ module BuiltIns
     debug "[Stop log]\n"
     if in_zenlog
       # If "-n" is passed, print the number of lines in the log.
-      want_lines = args.include? "-n"
+      if args.length > 0 && args[0] == "-n"
+        want_lines = true
+        args.shift
+      end
+      status = (args.length > 0) ? args.shift : ""
 
       io_error_okay do
         # Send "stop log" to the logger directly.
         fingerprint = Time.now.to_f.to_s
         zenlog_working = with_logger do |out|
-          out.print(STOP_LOG_MARKER, fingerprint, "\n")
+          out.print(STOP_LOG_MARKER, fingerprint, COMMAND_ARG_SEPARATOR, status, "\n")
         end
         if !zenlog_working
           return
@@ -317,6 +335,11 @@ module BuiltIns
     return matched ? matched[1] : nil
   end
 
+  public
+  def self.split_command_and_env(command_env)
+    return (command_env.to_s == "") ? "" : command_env.split(COMMAND_ARG_SEPARATOR, 2)
+  end
+
   # Called by the logger to see if an incoming line is of a stop log
   # marker, and if so, returns the last log line (everything before the marker,
   # in case the command last output line doesn't end with a NL) and a
@@ -324,6 +347,11 @@ module BuiltIns
   public
   def self.match_stop_log(in_line)
     return find_marker(in_line, STOP_LOG_MARKER)
+  end
+
+  public
+  def self.split_fingerprint_status(fingerprint_status)
+    return (fingerprint_status.to_s == "") ? "" : fingerprint_status.split(COMMAND_ARG_SEPARATOR, 2)
   end
 
   # Create an ACK marker with a fingerprint.
@@ -409,6 +437,9 @@ module BuiltIns
     when "start_command"
       return ->(*args){start_command(args)}
 
+    when "start_command_with_env"
+      return ->(*args){start_command(args[1..-1], env:args[0])}
+
     when "stop_log"
       return ->(*args){stop_log(args)}
 
@@ -444,6 +475,8 @@ class ZenLogger
   RAW_LINK = 'R'
   SAN = 'SAN'
   SAN_LINK = 'P'
+  ENV = 'ENV'
+  ENV_LINK = 'E'
 
   MAX_PREV_LINKS = 10
 
@@ -464,6 +497,9 @@ class ZenLogger
 
     @san = nil
     @raw = nil
+    @env = nil
+
+    @command_start_time = nil
   end
 
   private
@@ -484,6 +520,8 @@ class ZenLogger
   def create_links(parent_dir, dir, type, link_name, log_file_name, now)
     return if dir == "." || dir == ".."
 
+    return unless File.exist? log_file_name
+
     full_dir_name = (@log_dir + "/" + parent_dir + "/" + dir + "/" + type +
         "/" + now.strftime('%Y/%m/%d')).gsub(%r!/+!, "/")
 
@@ -501,7 +539,7 @@ class ZenLogger
 
   # Start logging for a command.
   # Open the raw/san streams, create symlinks, etc.
-  def start_logging(command_line)
+  def start_logging(command_line, env)
     tokens = shsplit(command_line)
 
     # All the executable command names in the command pipeline.
@@ -536,7 +574,7 @@ class ZenLogger
           ", comment=#{comment}\n"}
     end
 
-    open_log(command_line, command_names, comment, nolog_detected)
+    open_log(command_line, command_names, comment, nolog_detected, env)
   end
 
   private
@@ -561,19 +599,30 @@ class ZenLogger
   end
 
   private
-  def open_log(command_line, command_names, comment, no_log)
+  def open_log(command_line, command_names, comment, no_log, env)
     stop_logging()
 
     tag = filename_safe(comment)
     now = Time.now.getlocal
+    @command_start_time = now
 
     raw_name = create_log_filename(command_line, tag, now)
     san_name = raw_name.gsub(/#{RAW}/o, SAN)
 
     @raw = open_logfile(raw_name)
     @san = open_logfile(san_name)
+    if env
+      env_name = raw_name.gsub(/#{RAW}/o, ENV)
+      @env = open_logfile env_name
+      @env.print "Command: ", command_line, "\n"
+      write_now_to_env "Start time", now
+      @env.print BuiltIns.decode_env(env)
+    end
 
-    [[raw_name, RAW, RAW_LINK], [san_name, SAN, SAN_LINK]].each do |log_name, type, link_name|
+    [[raw_name, RAW, RAW_LINK],
+        [san_name, SAN, SAN_LINK],
+        [env_name, ENV, ENV_LINK]
+        ].each do |log_name, type, link_name|
       create_prev_links(@log_dir, link_name, log_name)
 
       pid_s = @pid.to_s
@@ -599,6 +648,13 @@ class ZenLogger
   end
 
   private
+  def write_now_to_env(label, time)
+    if @env
+      @env.print label, ": ", time.strftime('%Y/%m/%d %H:%M:%S.%L'), "\n"
+    end
+  end
+
+  private
   def write_log(line)
     if @raw
       @raw.print(line)
@@ -608,11 +664,20 @@ class ZenLogger
   end
 
   private
-  def stop_logging()
+  def stop_logging(status=nil)
+    if @env && (status.to_s != "")
+      @env.puts
+      @env.print "Exit status: ", status, "\n"
+      now = Time.now.getlocal
+      write_now_to_env "Finish time", now
+      @env.print "Duration: ", now - @command_start_time, "\n"
+    end
     @raw.close if @raw
     @san.close if @san
+    @env.close if @env
     @raw = nil
     @san = nil
+    @env = nil
   end
 
   # This is called when
@@ -645,28 +710,31 @@ class ZenLogger
       @logger_in.each_line do |line|
         # Command started? Then start logging.
         if !in_command
-          command = BuiltIns.match_command_start(line)
-          if command != nil
+          command_env = BuiltIns.match_command_start(line)
+          if command_env != nil
+            command, env = BuiltIns.split_command_and_env(command_env)
             debug {"Command started: \"#{command}\"\n"}
+            # debug {"env: \"#{env}\"\n"} if env # Too verbose
 
             in_command = true
 
-            start_logging(command)
+            start_logging(command, env)
             next
           end
         end
 
         # Command stopped?
-        last_line, fingerprint = BuiltIns.match_stop_log(line)
-        if fingerprint
+        last_line, fingerprint_status = BuiltIns.match_stop_log(line)
+        if fingerprint_status
+          fingerprint, status = BuiltIns.split_fingerprint_status(fingerprint_status)
           if in_command
-            debug {"Command finished: #{fingerprint}\n"}
+            debug {"Command finished: #{fingerprint}, status=#{status}\n"}
 
             in_command = false
 
             write_log(last_line) if last_line.to_s != ""
 
-            stop_logging
+            stop_logging status
           end
           # Note we always need to return ACK, even if not running a command.
           @command_out.print(BuiltIns.get_stop_log_ack(fingerprint,

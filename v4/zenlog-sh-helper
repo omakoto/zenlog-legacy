@@ -28,4 +28,14 @@ function bash_last_command() {
   # Use echo to remove newlines.
   echo $(HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//')
 }
+
+function bash_dump_env() {
+  {
+    echo "PWD: $(pwd)"
+    echo "git HEAD: $(git describe --contains --all HEAD)"
+    # env
+    declare -p
+  } 2>/dev/null
+}
+
 EOF
