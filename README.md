@@ -2,6 +2,8 @@
 
 Zenlog is a wrapper around a login shell to save all command output to a separate log file for each command automatically, so you no longer need to use tee(1) to keep log files.
 
+Optionally Zenlog can capture meta information such as command start time, command finish time, current directory, git current branch, shell/environmental variables, etc, in a separate log file.
+
 The the current version is v4.
 
 Old versions (v0 and v1) worked with bash <= 4.3. Newer versions (v2, written in Perl, and v4, rewritten in Ruby) require PS0 support, which is new in bash 4.4 (aka pre-exec hook).
@@ -20,7 +22,7 @@ Zenlog still uses special markers to pass the information to the logger process,
 
 Zenlog now also uses another pipe to pass the information from the logger to the shell, which is use to wait until the last log file is closed by `zenlog stop_log`.
 
-## Install and setup
+## Quick start: install and setup (Bash)
 
 To install, just clone this project:
 
@@ -30,7 +32,7 @@ git clone https://github.com/omakoto/zenlog.git
 
 Then add the following to your `.bashrc`.
 ```
-source PATH-TO-THIS-FILE/zenlog.bash
+source PATH-TO-THIS-FILE/shell/zenlog.bash
 ```
 
 (Note this will overwrite `P0` and `PROMPT_COMMAND`, so if you don't like it, look at the script and do whatever you want.)
@@ -39,7 +41,7 @@ source PATH-TO-THIS-FILE/zenlog.bash
 
 Any shell should work, as long as it supports some sort of "pre-exec" and "post-exec" hooks.
 
-(Except if the syntax is not similar to that of bsh's, the command name detection may not work.)
+(Except if the syntax is not similar to that of bourne-sh's, command name detection may not work and may not get proper per-command symlinks.)
 
 ### Optional rubygem installation
 

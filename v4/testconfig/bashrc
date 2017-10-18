@@ -6,11 +6,12 @@ echo $ZENLOG
 . <("$ZENLOG" -s)
 
 preexec() {
-  "$ZENLOG" start-command $(bash_last_command)
+  "$ZENLOG" start-command-with-env "$(bash_dump_env)" $(bash_last_command)
 }
 
 prompt_command() {
-  "$ZENLOG" stop-log
+  status=$?
+  "$ZENLOG" stop-log $status
 }
 
 PS1='[\w \$\$=$$ ZENLOG_PID=$ZENLOG_PID]\n\$ '

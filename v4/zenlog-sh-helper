@@ -32,7 +32,7 @@ function bash_last_command() {
 function bash_dump_env() {
   {
     echo "PWD: $(pwd)"
-    echo "git HEAD: $(git describe --contains --all HEAD)"
+    echo "git HEAD: $(git rev-parse HEAD) $(git describe --contains --all HEAD)"
     # env
     declare -p
   } 2>/dev/null
