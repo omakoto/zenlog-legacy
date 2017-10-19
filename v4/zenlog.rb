@@ -405,20 +405,6 @@ module BuiltIns
     return true
   end
 
-  # Just runs the passed command with exec(), but when exec fails
-  # it'll start the emergency shell instead.
-  # We need this because "sh -c 'exec no-such-command; exec /bin/sh'"
-  # doesn't work.
-  private
-  def self.exec_or_emergency_shell(*args)
-    begin
-      exec *args
-    rescue
-      say "zenlog: failed to start #{args.join(" ")}.\n"
-      start_emergency_shell
-    end
-  end
-
   # Return a lambda that calls built-in command, or nil of the given
   # command doesn't exist.
   # We don't just use "respond_to?" to avoid leaking ruby functions.
@@ -457,9 +443,6 @@ module BuiltIns
 
     when "write_to_logger"
       return ->(*args) {write_to_logger}
-
-    when "exec_or_emergency_shell"
-      return ->(*args) {exec_or_emergency_shell(*args)}
 
     end
 
@@ -840,13 +823,12 @@ class ZenStarter
       # Instead we use exec_or_emergency_shell.
       command = [
           "script",
-          "-fqc",
+          "-efqc",
           "#{ZENLOG_SHELL_PID}=#{$$} " +
           "#{ZENLOG_LOGGER_OUT}=#{shescape logger_out_name} " +
           "#{ZENLOG_COMMAND_IN}=#{shescape command_in_name} " +
           "#{ZENLOG_TTY}=$(tty) " +
-          "exec '#{MY_REALPATH}' exec_or_emergency_shell " +
-          "#{shescape_multi @start_command}",
+          "exec #{shescape_multi @start_command}",
           logger_out_name,
           FD_LOGGER_OUT => @logger_out,
           FD_COMMAND_IN => @command_in]
