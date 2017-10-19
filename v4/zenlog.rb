@@ -27,6 +27,7 @@ BEGIN {
 }
 
 require 'fileutils'
+require 'io/wait'
 require 'timeout'
 require_relative 'shellhelper'
 
@@ -491,7 +492,8 @@ class ZenLogger
       MAX_PREV_LINKS.downto(2) do |n|
         from = (full_dir_name + "/" + (link_name * (n - 1)))
         to   = full_dir_name + "/" + (link_name * n)
-        FileUtils.mv(from, to, {force:true}) if File.exist? from
+        FileUtils.rm(to, {force:true}) if File.exist? to
+        FileUtils.mv(from, to) if File.exist? from
       end
       FileUtils.ln_sf(log_file_name, full_dir_name + "/" + link_name)
     rescue SystemCallError => e
@@ -577,7 +579,6 @@ class ZenLogger
   def open_logfile(filename)
     FileUtils.mkdir_p(File.dirname(filename))
     out = open(filename, "w")
-    out.sync = true
     return out
   end
 
@@ -600,6 +601,7 @@ class ZenLogger
       @env.print "Command: ", command_line, "\n"
       write_now_to_env "Start time", now
       @env.print BuiltIns.decode_env(env)
+      @env.flush
     end
 
     [[raw_name, RAW, RAW_LINK],
@@ -638,12 +640,17 @@ class ZenLogger
   end
 
   private
-  def write_log(line)
+  def write_log(line, flush=true, ready_check:nil)
+    flush = !ready_check.ready? if ready_check
     if @raw
       @raw.print(line)
+      @raw.flush if flush
       @num_lines_written += 1
     end
-    @san.print(sanitize(line)) if @san
+    if @san
+      @san.print(sanitize(line))
+      @san.flush if flush
+    end
   end
 
   private
@@ -690,7 +697,7 @@ class ZenLogger
       in_command = false
       @num_lines_written = 0
 
-      @logger_in.each_line do |line|
+      @logger_in.each_line do |line| # TODO Make sure CR will split liens too.
         # Command started? Then start logging.
         if !in_command
           command_env = BuiltIns.match_command_start(line)
@@ -715,7 +722,7 @@ class ZenLogger
 
             in_command = false
 
-            write_log(last_line) if last_line.to_s != ""
+            write_log(last_line, false) if last_line.to_s != ""
 
             stop_logging status
           end
@@ -730,7 +737,7 @@ class ZenLogger
           on_child_finished
         end
 
-        write_log line
+        write_log line, ready_check:@logger_in
       end
     rescue IOError => e
       say "zenlog: Error #{e}\n" if debug
