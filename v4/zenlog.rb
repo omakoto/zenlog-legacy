@@ -60,6 +60,8 @@ RC_FILE = ENV[ZENLOG_RC] || Dir.home() + '/.zenlogrc.rb'
 
 DEBUG = (ENV[ZENLOG_DEBUG] == "1") || File.exist?(ZENLOG_FORCE_DEBUG_FILE)
 
+AUTOSYNC_LOG = true
+
 #-----------------------------------------------------------
 # Core functions.
 #-----------------------------------------------------------
@@ -579,6 +581,7 @@ class ZenLogger
   def open_logfile(filename)
     FileUtils.mkdir_p(File.dirname(filename))
     out = open(filename, "w")
+    out.sync = true if AUTOSYNC_LOG
     return out
   end
 
@@ -641,7 +644,11 @@ class ZenLogger
 
   private
   def write_log(line, flush=true, ready_check:nil)
-    flush = !ready_check.ready? if ready_check
+    if AUTOSYNC_LOG
+      flush = false
+    else
+      flush = !ready_check.ready? if ready_check
+    end
     if @raw
       @raw.print(line)
       @raw.flush if flush
