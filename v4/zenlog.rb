@@ -401,7 +401,7 @@ module BuiltIns
     else
       files = Pathname.glob(dir + "/" + name + "*") \
           .reject {|p| !p.symlink?} \
-          .map {|x| x.to_s}.reverse
+          .map {|x| x.to_s}
     end
 
     files.map {|f| File.readlink(f)}.map {|f| f.gsub(/\/+/, "/")}.sort.each {|f| puts f}
@@ -491,6 +491,7 @@ class ZenLogger
 
   private
   def create_prev_links(full_dir_name, link_name, log_file_name)
+    return unless File.exist? log_file_name.to_s
     begin
       MAX_PREV_LINKS.downto(2) do |n|
         from = (full_dir_name + "/" + (link_name * (n - 1)))
@@ -508,7 +509,7 @@ class ZenLogger
   def create_links(parent_dir, dir, type, link_name, log_file_name, now)
     return if dir == "." || dir == ".."
 
-    return unless File.exist? log_file_name
+    return unless File.exist? log_file_name.to_s
 
     full_dir_name = (@log_dir + "/" + parent_dir + "/" + dir + "/" + type +
         "/" + now.strftime('%Y/%m/%d')).gsub(%r!/+!, "/")
