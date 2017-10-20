@@ -114,6 +114,7 @@ module ZenCore
 
   # Remove ANSI escape sequences from a string.
   def sanitize(str)
+    str.encode!('UTF-8', 'UTF-8', :invalid => :replace)
     str.gsub! %r!(
           \a                         # Bell
           | \e \x5B .*? [\x40-\x7E]  # CSI
