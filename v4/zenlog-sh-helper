@@ -23,6 +23,31 @@ function _zenlog_force_log() {
 }
 alias 186=_zenlog_force_log
 
+function _zenlog_current_log_helper() {
+  local san_name=$1 raw_name=$2
+  local OPTIND
+  local pid=$ZENLOG_PID
+  local name=$san_name
+  while getopts "rp:" opt; do
+    case "$opt" in
+      p) pid="$OPTARG" ;;
+      r) name=$raw_name ;;
+    esac
+  done
+  shift $(($OPTIND - 1))
+  readlink "${ZENLOG_DIR}/pids/${pid}/${name}" 2>/dev/null
+}
+
+# Basically same as "zenlog current-log", except this one is faster.
+function zenlog_current_log() {
+  _zenlog_current_log_helper P R
+}
+
+# Basically same as "zenlog last-log", except this one is faster.
+function zenlog_last_log() {
+  _zenlog_current_log_helper PP RR
+}
+
 # Print the current command's command line.  Use with "zenlog start-command".
 function bash_last_command() {
   # Use echo to remove newlines.

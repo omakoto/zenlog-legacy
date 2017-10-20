@@ -1,43 +1,26 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env ruby
 
-use strict;
-use Getopt::Std;
+# Show the previous (i.e. P or R) log filename.
+# Note the zenlog_(current|las)_log functions provided by
+# "zenlog sh-helper" are a lot faster than this version.
 
-my %opts = ();
+require 'pathname'
+require 'optionparser'
+require_relative 'zenlog'
 
-getopts("p:r", \%opts) or exit 1;
+BuiltIns.fail_unless_in_zenlog
 
-my $pid = $opts{p} // $ENV{ZENLOG_PID};
+raw = false
+pid = ENV[ZENLOG_PID].to_i
 
-my $file = readlink("$ENV{ZENLOG_DIR}/pids/$pid/P") or exit 1;
+OptionParser.new { |opts|
+  opts.on("-r", "Show RAW filenames, instead of SAN filenames.") do
+    raw = true
+  end
 
-$file =~ s/\bSAN\b/RAW/ if $opts{r};
+  opts.on("-pPID", "PID of a zenlog session to show log instead of current session.") do |v|
+    pid = v.to_i
+  end
+}.order!
 
-print $file, "\n";
-
-
-# It was too slow.
-# #!/usr/bin/env ruby
-#
-# require 'pathname'
-# require 'optionparser'
-# require_relative 'zenlog'
-#
-# BuiltIns.fail_unless_in_zenlog
-#
-# raw = false
-# nth = -1
-# pid = ENV[ZENLOG_PID].to_i
-#
-# OptionParser.new { |opts|
-#   opts.on("-r", "Show RAW filenames, instead of SAN filenames.") do
-#     raw = true
-#   end
-#
-#   opts.on("-pPID", "PID of a zenlog session to show log instead of current session.") do |v|
-#     pid = v.to_i
-#   end
-# }.order!
-#
-# BuiltIns.history(raw, pid, 0)
-#
+BuiltIns.history(raw, pid, 0)

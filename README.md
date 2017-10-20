@@ -181,8 +181,10 @@ $ zenlog history -n 1
 * `zenlog open-current-log [-r]` Open current log file. `-r` to open RAW instead of SAN.
 
 * `zenlog last-log [-r]` Print last log file name. `-r` to show RAW name instead of SAN.
+    - See also the `zenlog_last_log` shell function, which is order of magnitude faster.
 
 * `zenlog current-log [-r]` Print current log file name. `-r` to show RAW name instead of SAN.
+    - See also the `zenlog_current_log` shell function, which is order of magnitude faster.
 
     `last-log` and `current-log` are useful for scripting. `current-log` is useful when executing a command *on* the command line prompt. For example, on Bash, you can define a hotkey to launch a command with `bind -x`. Using this, `bind -x '"\e1": "zenlog open-current-log"'` allows you to open the last log file with pressing `ALT-1`.
 
@@ -211,6 +213,8 @@ $ 186 man bash
 ```
 
 * `bash_last_command` shows the most recent command line. Intended to be used with `start-command`. See [the sample bash config file](shell/zenlog.bash).
+
+* `zenlog_last_log`, `zenlog_current_log` provide the same functionalities as `zenlog last-log`, `zenlog current-log`, except they are a lot faster since they're shell functions. Useful when using for the prompt.
 
 ### Scripting helper commands
 
