@@ -1,0 +1,21 @@
+#!bash
+
+. <("$ZENLOG_BIN" -s)
+
+preexec() {
+  "$ZENLOG_BIN" start-command-with-env "$(bash_dump_env)" $(bash_last_command)
+}
+
+prompt_command() {
+  status=$?
+  lines=$("$ZENLOG_BIN" stop-log -n $status)
+  echo "Lines: $lines"
+}
+
+PS1='\$ '
+PS0='$(preexec)'
+PROMPT_COMMAND="prompt_command"
+
+tick() {
+  echo $(( $(cat $ZENLOG_TIME_INJECTION_FILE) + 1 )) > $ZENLOG_TIME_INJECTION_FILE
+}

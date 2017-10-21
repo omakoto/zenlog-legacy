@@ -63,6 +63,8 @@ DEBUG = (ENV[ZENLOG_DEBUG] == "1") || File.exist?(ZENLOG_FORCE_DEBUG_FILE)
 
 AUTOSYNC_LOG = ENV[ZENLOG_AUTO_SYNC] != "0"
 
+TIMEFILE = ENV['ZENLOG_TIME_INJECTION_FILE']
+
 #-----------------------------------------------------------
 # Core functions.
 #-----------------------------------------------------------
@@ -85,9 +87,9 @@ module ZenCore
     return true
   end
 
-  def die(message)
+  def die(message, exit_status:1)
     say "zenlog: #{message}\n"
-    exit 1
+    exit exit_status
   end
 
   # Return the tty name for this process.
@@ -181,8 +183,8 @@ module BuiltIns
 
   # Subcommand: zenlog fail-if-in-zenlog
   public
-  def self.fail_if_in_zenlog
-    die 'already in zenlog.' if in_zenlog
+  def self.fail_if_in_zenlog exit_status:0
+    die 'already in zenlog.', exit_status:exit_status if in_zenlog
     return true
   end
 
@@ -491,6 +493,15 @@ class ZenLogger
   end
 
   private
+  def get_time
+    if TIMEFILE
+      return Time.at(open(TIMEFILE, "r").read().to_i)
+    else
+      return Time.now.getlocal
+    end
+  end
+
+  private
   def create_prev_links(full_dir_name, link_name, log_file_name)
     return unless File.exist? log_file_name.to_s
     begin
@@ -593,7 +604,7 @@ class ZenLogger
     stop_logging()
 
     tag = filename_safe(comment)
-    now = Time.now.getlocal
+    now = get_time
     @command_start_time = now
 
     raw_name = create_log_filename(command_line, tag, now)
@@ -668,7 +679,7 @@ class ZenLogger
     if @env && (status.to_s != "")
       @env.puts
       @env.print "Exit status: ", status, "\n"
-      now = Time.now.getlocal
+      now = get_time
       write_now_to_env "Finish time", now
       @env.print "Duration: ", now - @command_start_time, "\n"
     end
@@ -810,7 +821,9 @@ class ZenStarter
   # Start a new zenlog session.
   public
   def start_zenlog_session()
-    BuiltIns.fail_if_in_zenlog
+    # We don't want to start the emergency cell in this case,
+    # So let's just return 0 for now.
+    BuiltIns.fail_if_in_zenlog exit_status:0
 
     init()
 
