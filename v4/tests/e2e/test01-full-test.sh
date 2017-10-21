@@ -29,11 +29,30 @@ zenlog_current_log -r # fun r current log
 zenlog_last_log -r # fun r last log
 zenlog history # history 2
 zenlog history -r # history raw
+echo $'a\xffb' # broken utf8
 exit
 EOF
 
 echo "Checking tree..."
 diff --color=always -c $medir/results/tree1.txt <($TREE -aF "$ZENLOG_DIR")
 
-echo "Checking files..."
-diff --exclude ENV --color=always -cr $medir/results/files "$ZENLOG_DIR"
+echo "Checking log files..."
+diff --exclude ENV --color=always  -X $medir/diff-ignore-files.txt \
+    -ur $medir/results/files "$ZENLOG_DIR"
+
+echo "Checking env files..."
+# rm -fr /tmp/zendiff
+# mkdir -p /tmp/zendiff
+# cp -pr "$medir/results/files/ENV" /tmp/zendiff/expected
+# cp -pr "$ZENLOG_DIR/ENV" /tmp/zendiff/actual
+
+# find /tmp/zendiff -type f | xargs perl -pi "
+# next if /^git HEAD:/
+# s/$medir/<medir>/
+# "
+#diff --color=always -ur /tmp/zendiff/expected /tmp/zendiff/actual
+
+# Let's just ignore most lines... For now we only check start/finish times.
+diff --color=always -X $medir/diff-ignore-files.txt \
+    -I '^PWD:' -I '^git HEAD:' -I '^[a-zA-Z0-9_]*=' -ur \
+    $medir/results/files/ENV "$ZENLOG_DIR/ENV"

@@ -2,7 +2,9 @@
 
 medir="${0%/*}"
 
-. "$medir/zenlog-test-common"
+cd "$medir" || exit 1
+
+. "./zenlog-test-common"
 
 rm -fr results
 mkdir -p results

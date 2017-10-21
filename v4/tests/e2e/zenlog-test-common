@@ -3,7 +3,7 @@
 medir="$(readlink -f "${0%/*}")"
 
 # Clear all ZENLOG_ variables.
-for env in $(env | perl -ne '/^(ZENLOG_.*?)=/ && print $1, "\n"') ; do
+for env in ${!ZENLOG_*} ; do
   unset "$env"
 done
 
@@ -19,8 +19,6 @@ export _ZENLOG_TIME_INJECTION_FILE=/tmp/zenlog-time
 echo 1508544000 >"$_ZENLOG_TIME_INJECTION_FILE"
 
 #export ZENLOG_DEBUG=1
-
-export PATH="$medir/..:$PATH"
 
 export TREE="tree -aF"
 
