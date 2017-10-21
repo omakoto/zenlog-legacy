@@ -1,7 +1,7 @@
 /bin/true; exec ruby -wSx "$0"
 #!ruby
 
-require_relative "../zenlog"
+require_relative "../../zenlog"
 
 require "test/unit"
 

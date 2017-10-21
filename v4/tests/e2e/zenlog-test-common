@@ -8,7 +8,7 @@ for env in $(env | perl -ne '/^(ZENLOG_.*?)=/ && print $1, "\n"') ; do
 done
 
 # Configuration.
-export ZENLOG_BIN="$medir/../zenlog"
+export ZENLOG_BIN="$medir/../../zenlog"
 
 export ZENLOG_RC="$medir/zenlogrc.rb"
 export ZENLOG_START_COMMAND="/bin/bash --noprofile --rcfile $medir/bashrc"

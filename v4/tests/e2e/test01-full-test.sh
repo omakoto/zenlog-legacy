@@ -6,6 +6,8 @@ medir="${0%/*}"
 
 clear_log
 
+cd "$medir"
+
 run_zenlog <<EOF
 echo ok; tick 3
 cat data/fstab | grep -v -- '^#'
@@ -31,7 +33,7 @@ exit
 EOF
 
 echo "Checking tree..."
-diff --color=always -c results/tree1.txt <($TREE -aF "$ZENLOG_DIR")
+diff --color=always -c $medir/results/tree1.txt <($TREE -aF "$ZENLOG_DIR")
 
 echo "Checking files..."
-diff --exclude ENV --color=always -cr results/files "$ZENLOG_DIR"
+diff --exclude ENV --color=always -cr $medir/results/files "$ZENLOG_DIR"

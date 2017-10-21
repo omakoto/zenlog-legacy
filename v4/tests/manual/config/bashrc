@@ -1,6 +1,6 @@
 #!bash
 
-ZENLOG=$(readlink -m "$(dirname "${BASH_SOURCE[0]}")"/../zenlog)
+ZENLOG=$(readlink -m "$(dirname "${BASH_SOURCE[0]}")"/../../../zenlog)
 echo $ZENLOG
 
 . <("$ZENLOG" -s)
