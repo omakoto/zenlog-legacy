@@ -710,7 +710,8 @@ class ZenLogger
 
     clean_up()
 
-    if child_status == 127
+    # http://www.tldp.org/LDP/abs/html/exitcodes.html for what 126 and 127 are.
+    if child_status == 126 || child_status == 126
       say "\e[0m\e[31mZenlog: Failed to start child process.\e[0m\n"
       start_emergency_shell
     end
