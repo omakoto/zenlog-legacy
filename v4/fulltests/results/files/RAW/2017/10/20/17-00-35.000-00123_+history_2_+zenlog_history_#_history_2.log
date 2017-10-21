@@ -1,0 +1,11 @@
+$ [1;3;4;33mzenlog history # history 2[0m
+/tmp/zenlog-test/SAN/2017/10/20/17-00-18.000-00123_+com_r_last_log_+zenlog_last-log_-r_#_com_r_last_.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-20.000-00123_+and_test_+true_echo_and_test_#_and_test.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-22.000-00123_+or_test_+false_echo_or_test_#_or_test.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-24.000-00123_+cat_data_fstab_fgrep_dev.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-25.000-00123_+in_zenlog_echo_in_zenlog_.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-27.000-00123_+fun_current_log_+zenlog_current_log_#_fun_current.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-29.000-00123_+fun_last_log_+zenlog_last_log_#_fun_last_log.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-31.000-00123_+fun_r_current_log_+zenlog_current_log_-r_#_fun_r_cu.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-33.000-00123_+fun_r_last_log_+zenlog_last_log_-r_#_fun_r_last_.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-35.000-00123_+history_2_+zenlog_history_#_history_2.log

@@ -63,7 +63,9 @@ DEBUG = (ENV[ZENLOG_DEBUG] == "1") || File.exist?(ZENLOG_FORCE_DEBUG_FILE)
 
 AUTOSYNC_LOG = ENV[ZENLOG_AUTO_SYNC] != "0"
 
-TIMEFILE = ENV['ZENLOG_TIME_INJECTION_FILE']
+# Variables that are used for testing to inject
+TIMEFILE = ENV['_ZENLOG_TIME_INJECTION_FILE']
+ZENLOG_LOGGER_PID = '_ZENLOG_LOGGER_PID'
 
 #-----------------------------------------------------------
 # Core functions.
@@ -461,19 +463,19 @@ end
 # Sits in the background and writes log.
 #-----------------------------------------------------------
 class ZenLogger
-  RAW = 'RAW'
-  RAW_LINK = 'R'
-  SAN = 'SAN'
-  SAN_LINK = 'P'
-  ENV = 'ENV'
-  ENV_LINK = 'E'
+  CRAW = 'RAW'
+  CRAW_LINK = 'R'
+  CSAN = 'SAN'
+  CSAN_LINK = 'P'
+  CENV = 'ENV'
+  CENV_LINK = 'E'
 
   MAX_PREV_LINKS = 10
 
   public
   def initialize(log_dir, child_pid, logger_in, command_out)
     @log_dir = log_dir
-    @pid = $$
+    @pid = ENV[ZENLOG_LOGGER_PID] || $$
     @child_pid = child_pid
     @logger_in = logger_in
     @command_out = command_out
@@ -485,6 +487,12 @@ class ZenLogger
     @prefix_commands_re = Regexp.compile('^' + @prefix_commands + '$')
     @always_no_log_commands_re = Regexp.compile('^' + @always_no_log_commands + '$')
 
+    debug {
+      "Logger @pid=#{@pid}\n" +
+      "Logger @prefix_commands=#{@prefix_commands}\n" +
+      "Logger @always_no_log_commands=#{@always_no_log_commands}\n"
+    }
+
     @san = nil
     @raw = nil
     @env = nil
@@ -495,7 +503,11 @@ class ZenLogger
   private
   def get_time
     if TIMEFILE
-      return Time.at(open(TIMEFILE, "r").read().to_i)
+      now = open(TIMEFILE, "r").read().to_i
+      open TIMEFILE, "w" do |out|
+        out.print (now + 1).to_s
+      end
+      return Time.at(now)
     else
       return Time.now.getlocal
     end
@@ -519,7 +531,7 @@ class ZenLogger
 
   private
   def create_links(parent_dir, dir, type, link_name, log_file_name, now)
-    return if dir == "." || dir == ".."
+    return if dir == "." || dir == ".." || dir == ""
 
     return unless File.exist? log_file_name.to_s
 
@@ -583,7 +595,7 @@ class ZenLogger
     tag_str = "_+" + tag if tag.to_s != ""
     command_str = filename_safe(command_line)[0,32]
 
-    return sprintf("%s/#{RAW}/%s-%05d%s_+%s.log",
+    return sprintf("%s/#{CRAW}/%s-%05d%s_+%s.log",
         @log_dir,
         now.strftime('%Y/%m/%d/%H-%M-%S.%L'),
         @pid,
@@ -608,12 +620,12 @@ class ZenLogger
     @command_start_time = now
 
     raw_name = create_log_filename(command_line, tag, now)
-    san_name = raw_name.gsub(/#{RAW}/o, SAN)
+    san_name = raw_name.gsub(/#{CRAW}/o, CSAN)
 
     @raw = open_logfile(raw_name)
     @san = open_logfile(san_name)
     if env
-      env_name = raw_name.gsub(/#{RAW}/o, ENV)
+      env_name = raw_name.gsub(/#{CRAW}/o, CENV)
       @env = open_logfile env_name
       @env.print "Command: ", command_line, "\n"
       write_now_to_env "Start time", now
@@ -621,9 +633,9 @@ class ZenLogger
       @env.flush
     end
 
-    [[raw_name, RAW, RAW_LINK],
-        [san_name, SAN, SAN_LINK],
-        [env_name, ENV, ENV_LINK]
+    [[raw_name, CRAW, CRAW_LINK],
+        [san_name, CSAN, CSAN_LINK],
+        [env_name, CENV, CENV_LINK]
         ].each do |log_name, type, link_name|
       create_prev_links(@log_dir, link_name, log_name)
 
@@ -698,8 +710,8 @@ class ZenLogger
 
     clean_up()
 
-    if child_status != 0
-      say "\e[0m\e[31mZenlog: Child stopped with error status #{child_status}.\e[0m\n"
+    if child_status == 127
+      say "\e[0m\e[31mZenlog: Failed to start child process.\e[0m\n"
       start_emergency_shell
     end
   end
@@ -780,11 +792,15 @@ class ZenStarter
   def init_config()
     require_relative 'zenlog-defaults'
 
-    if File.exist?(@rc_file) && !File.zero?(@rc_file)
-      debug {"Loading #{@rc_file}...\n"}
+    if @rc_file.to_s != ""
+      if File.exist?(@rc_file) && !File.zero?(@rc_file)
+        debug {"Loading #{@rc_file}...\n"}
 
-      # Somehow "load" doesn't load from /dev/null? So we skip a 0 byte file.
-      load @rc_file
+        # Somehow "load" doesn't load from /dev/null? So we skip a 0 byte file.
+        load @rc_file
+      else
+        debug {"Missing #{@rc_file}, ignored.\n"}
+      end
     end
 
     @log_dir = ENV[ZENLOG_DIR] || DEFAULT_ZENLOG_DIR

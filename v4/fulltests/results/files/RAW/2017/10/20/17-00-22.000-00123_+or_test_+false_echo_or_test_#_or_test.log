@@ -1,0 +1,2 @@
+$ [1;3;4;33mfalse || echo "or test" # or test[0m
+or test

@@ -1,0 +1,2 @@
+$ [1;3;4;33mtrue && echo "and test" # and test[0m
+and test

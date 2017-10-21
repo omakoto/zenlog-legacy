@@ -17,5 +17,11 @@ PS0='$(preexec)'
 PROMPT_COMMAND="prompt_command"
 
 tick() {
-  echo $(( $(cat $ZENLOG_TIME_INJECTION_FILE) + 1 )) > $ZENLOG_TIME_INJECTION_FILE
+  local num=${1:-1}
+  echo $(( $(cat "$_ZENLOG_TIME_INJECTION_FILE") + $num )) > "$_ZENLOG_TIME_INJECTION_FILE"
 }
+
+stty -echo
+
+# Override it.
+ZENLOG_PID=$_ZENLOG_LOGGER_PID
