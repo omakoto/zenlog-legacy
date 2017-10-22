@@ -8,6 +8,8 @@ clear_log
 
 cd "$medir"
 
+#export ZENLOG_DEBUG=1 ; echo $'command cat /etc/fstab\nexit' | run_zenlog; exit 0
+
 run_zenlog <<EOF
 echo ok; tick 3
 cat data/fstab | grep -v -- '^#'
@@ -22,7 +24,15 @@ zenlog last-log -r # com r last log
 true && echo "and test" # and test
 false || echo "or test" # or test
 cat data/fstab | fgrep dev
+fgrep dev < data/fstab
+186 fgrep dev < data/fstab
+184 cat data/fstab
+command cat data/fstab
+/usr/bin/cat data/fstab
+ABC="1 2 3" cat data/fstab
+cat data/fstab | command sed -ne '1p'
 in_zenlog && echo "in zenlog"
+zenlog in_zenlog && echo "in zenlog"
 zenlog_current_log # fun current log
 zenlog_last_log # fun last log
 zenlog_current_log -r # fun r current log
@@ -30,6 +40,15 @@ zenlog_last_log -r # fun r last log
 zenlog history # history 2
 zenlog history -r # history raw
 echo $'a\xffb' # broken utf8
+export ZENLOG_PID=1
+zenlog current-log -r
+zenlog last-log -r
+zenlog history
+zenlog history -r
+zenlog current-log -r -p $_ZENLOG_LOGGER_PID
+zenlog last-log -r -p $_ZENLOG_LOGGER_PID
+zenlog history -p $_ZENLOG_LOGGER_PID
+zenlog history -r -p $_ZENLOG_LOGGER_PID
 exit
 EOF
 

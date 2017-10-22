@@ -470,6 +470,9 @@ class ZenLogger
   CENV = 'ENV'
   CENV_LINK = 'E'
 
+  NOLOG_PREFIX = "184"
+  YESLOG_PREFIX = "186"
+
   MAX_PREV_LINKS = 10
 
   public
@@ -562,6 +565,7 @@ class ZenLogger
     comment = nil
 
     nolog_detected = false
+    yeslog_detected = false
 
     if tokens.length > 0
       # If the last token starts with "#", it's a comment.
@@ -573,11 +577,25 @@ class ZenLogger
 
       command_start = true
       tokens.each do |token|
+        if is_shell_command_separator(token)
+          command_start = true
+          next
+        end
         # Extract the first token as a command name.
-        if command_start && !is_shell_op(token) && token !~ @prefix_commands_re
-          command_names << token
+        if command_start
+          if token =~ @prefix_commands_re
+            next
+          end
+          if token == NOLOG_PREFIX
+            nolog_detected = true
+            next
+          end
+          if token == YESLOG_PREFIX
+            yeslog_detected = true
+            next
+          end
+          command_names << token.sub(/^.*\//, '')
           command_start = false
-
           nolog_detected = true if token =~ @always_no_log_commands_re
         end
 
@@ -586,6 +604,8 @@ class ZenLogger
       debug {"Commands=#{command_names.inspect}#{nolog_detected ? " *nolog" : ""}" +
           ", comment=#{comment}\n"}
     end
+
+    nolog_detected = false if yeslog_detected
 
     open_log(command_line, command_names, comment, nolog_detected, env)
   end

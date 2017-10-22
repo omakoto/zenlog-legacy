@@ -1,0 +1,11 @@
+$ zenlog history -p 123
+/tmp/zenlog-test/SAN/2017/10/20/17-00-51.000-00123_+history_raw_+zenlog_history_-r_#_history_raw.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-53.000-00123_+broken_utf8_+echo_a_xffb_#_broken_utf8.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-55.000-00123_+export_ZENLOG_PID=1.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-57.000-00123_+zenlog_current-log_-r.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-59.000-00123_+zenlog_last-log_-r.log
+/tmp/zenlog-test/SAN/2017/10/20/17-01-01.000-00123_+zenlog_history.log
+/tmp/zenlog-test/SAN/2017/10/20/17-01-03.000-00123_+zenlog_history_-r.log
+/tmp/zenlog-test/SAN/2017/10/20/17-01-05.000-00123_+zenlog_current-log_-r_-p_123.log
+/tmp/zenlog-test/SAN/2017/10/20/17-01-07.000-00123_+zenlog_last-log_-r_-p_123.log
+/tmp/zenlog-test/SAN/2017/10/20/17-01-09.000-00123_+zenlog_history_-p_123.log

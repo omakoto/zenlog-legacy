@@ -1,0 +1,2 @@
+$ [1;3;4;33mcat data/fstab | command sed -ne '1p'[0m
+# /etc/fstab: static file system information.

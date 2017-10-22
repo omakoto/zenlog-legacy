@@ -168,6 +168,10 @@ def is_shell_op(arg)
   return arg =~ /^[\;\<\>\|\&\!\(\)]+$/
 end
 
+def is_shell_command_separator(arg)
+  return arg =~ /^[\;\|\&\!\(\)]+$/
+end
+
 #-----------------------------------------------------------
 class CommandLine
   def initialize(command_line, pos = -1)
