@@ -96,19 +96,8 @@ module ZenCore
 
   # Return the tty name for this process.
   def get_tty
-    begin
-      require 'ttyname'
-
-      # If any of stdin/stdout/stderr has a ttyname, just use it.
-      begin
-        tty = ($stdin.ttyname or $stdout.ttyname or $stderr.ttyname)
-        return tty if tty
-      rescue RuntimeError
-        # Fall through.
-      end
-    rescue LoadError
-      # Ignore and use ps.
-    end
+    tty = %x(tty 2>/dev/null).chomp
+    return tty if tty != ""
 
     # Otherwise, just ask the ps command...
     pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null).chomp
