@@ -27,10 +27,6 @@ zenlog_history() {
   ZENLOG history "$@"
 }
 
-zenlog_last_log() {
-  ZENLOG last-log "${@}"
-}
-
 zenlog_open_viewer() {
   ZENLOG open-viewer "${@}"
 }
@@ -45,11 +41,6 @@ zenlog_cat_last_log() {
 
 zenlog_cat_last_log_content() {
   ZENLOG cat-last-log-content "${@}"
-}
-
-# Useful: when used with -p PID.
-zenlog_current_log() {
-  ZENLOG history -n 0 "${@}"
 }
 
 # Useful: when used with -p PID.
