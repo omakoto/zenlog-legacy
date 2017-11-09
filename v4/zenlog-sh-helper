@@ -6,9 +6,14 @@
 # . <(zenlog sh-helper)
 
 cat <<'EOF'
-# Return sucess when in zenlog.
+
+# Same as "zenlog in_zenlog", except this one is faster.
+function zenlog_in_zenlog() {
+  [[ $(tty 2>/dev/null) == $ZENLOG_TTY ]]
+}
+
 function in_zenlog() {
-  zenlog in-zenlog
+  zenlog_in_zenlog
 }
 
 # Run a command without logging the output.

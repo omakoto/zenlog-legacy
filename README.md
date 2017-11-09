@@ -7,7 +7,7 @@ Optionally Zenlog can capture meta information such as command start time, comma
 The the current version is v4.
 
 Old versions (v0 and v1) worked with bash <= 4.3. Newer versions (v2, written in Perl, and v4, rewritten in Ruby) require PS0 support, which is new in bash 4.4 (aka pre-exec hook).
- 
+
 ## How it works
 
 [The version 0 script](v0/zenlog) shows the basic idea, which is "start a login shell within script(1) and let it log all terminal I/O to a file, but instead of logging to an actual file, pass it to a logger script via a pipe, and let the script detect each command start/end and save the output to separate log files."
@@ -181,10 +181,10 @@ $ zenlog history -n 1
 * `zenlog open-current-log [-r]` Open current log file. `-r` to open RAW instead of SAN.
 
 * `zenlog last-log [-r]` Print last log file name. `-r` to show RAW name instead of SAN.
-    - See also the `zenlog_last_log` shell function, which is order of magnitude faster.
+    - See also the `zenlog_last_log` shell function, which is an order of magnitude faster.
 
 * `zenlog current-log [-r]` Print current log file name. `-r` to show RAW name instead of SAN.
-    - See also the `zenlog_current_log` shell function, which is order of magnitude faster.
+    - See also the `zenlog_current_log` shell function, which is an order of magnitude faster.
 
     `last-log` and `current-log` are useful for scripting. `current-log` is useful when executing a command *on* the command line prompt. For example, on Bash, you can define a hotkey to launch a command with `bind -x`. Using this, `bind -x '"\e1": "zenlog open-current-log"'` allows you to open the last log file with pressing `ALT-1`.
 
@@ -214,13 +214,15 @@ $ 186 man bash
 
 * `bash_last_command` shows the most recent command line. Intended to be used with `start-command`. See [the sample bash config file](shell/zenlog.bash).
 
-* `zenlog_last_log`, `zenlog_current_log` provide the same functionalities as `zenlog last-log`, `zenlog current-log`, except they are a lot faster since they're shell functions. Useful when using for the prompt.
+* `zenlog_in_zenlog`, `zenlog_last_log` and `zenlog_current_log` provide the same functionalities as `zenlog in-zenlog`, `zenlog last-log` and `zenlog current-log`, except they are a lot faster since they're shell functions. Useful when using for the prompt.
 
 ### Scripting helper commands
 
 * `zenlog in_zenlog`
 
     Return success status if in a zenlog session.
+
+    - See also the `zenlog_in_zenlog` shell function, which is an order of magnitude faster.
 
 * `zenlog fail_if_in_zenlog`
 
@@ -302,7 +304,7 @@ $ echo "This is logged but not shown" | zenlog write_to_logger
 
 * `$HOME/.zenlogrc.rb`
 
-    If this file exists, Zenlog loads it before starting a session. 
+    If this file exists, Zenlog loads it before starting a session.
 
     If you star Zenlog directly form a terminal application, Zenlog starts before the actual login shell starts, so you can't configure it with the shell's RC file. Instead you can configure environmental variables in this file.
 
