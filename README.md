@@ -43,10 +43,6 @@ Any shell should work, as long as it supports some sort of "pre-exec" and "post-
 
 (Except if the syntax is not similar to that of bourne-sh's, command name detection may not work and may not get proper per-command symlinks.)
 
-### Optional rubygem installation
-
-Zenlog needs to know the ttyname of the current terminal, and it uses ps(1) to get it by default. However if the [ttyname](https://github.com/samuelkadolph/ruby-ttyname) gem is installed, Zenlog uses it, which is a bit faster.
-
 ## Using Zenlog
 
 Once you setup your `.bashrc`, just run `zenlog` to start a new session. As the [Caveats](#caveats) section describes, it's not recommended to use zenlog as a login shell. Just change your terminal app's setting and use zenlog as a custom startup program.
