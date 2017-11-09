@@ -29,14 +29,16 @@ function _zenlog_force_log() {
 alias 186=_zenlog_force_log
 
 function _zenlog_current_log_helper() {
-  local san_name=$1 raw_name=$2
+  local san_name=$1 raw_name=$2 env_name=$3
+  shift 3
   local OPTIND
   local pid=$ZENLOG_PID
   local name=$san_name
-  while getopts "rp:" opt; do
+  while getopts "rep:" opt; do
     case "$opt" in
       p) pid="$OPTARG" ;;
       r) name=$raw_name ;;
+      e) name=$env_name ;;
     esac
   done
   shift $(($OPTIND - 1))
@@ -45,12 +47,12 @@ function _zenlog_current_log_helper() {
 
 # Basically same as "zenlog current-log", except this one is faster.
 function zenlog_current_log() {
-  _zenlog_current_log_helper P R
+  _zenlog_current_log_helper P R E "$@"
 }
 
 # Basically same as "zenlog last-log", except this one is faster.
 function zenlog_last_log() {
-  _zenlog_current_log_helper PP RR
+  _zenlog_current_log_helper PP RR EE "$@"
 }
 
 # Print the current command's command line.  Use with "zenlog start-command".

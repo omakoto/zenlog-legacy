@@ -49,6 +49,11 @@ zenlog current-log -r -p $_ZENLOG_LOGGER_PID
 zenlog last-log -r -p $_ZENLOG_LOGGER_PID
 zenlog history -p $_ZENLOG_LOGGER_PID
 zenlog history -r -p $_ZENLOG_LOGGER_PID
+zenlog_current_log -e # fun e current log
+zenlog_last_log -e # fun e last log
+zenlog current-log -e -p $_ZENLOG_LOGGER_PID
+zenlog last-log -e -p $_ZENLOG_LOGGER_PID
+zenlog history -e -p $_ZENLOG_LOGGER_PID
 exit
 EOF
 

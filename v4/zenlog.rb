@@ -142,7 +142,7 @@ module ZenCore
   def filename_safe(str)
     return "" if str == nil
     return str.gsub(/\s+/, " ") \
-        .gsub(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}]+!, "_")
+        .gsub(%r![\s\/\'\"\|\[\]\\\!\@\$\&\*\(\)\?\<\>\{\}\;]+!, "_")
   end
 
   def start_emergency_shell()
@@ -398,11 +398,14 @@ module BuiltIns
 
   # Subcommand helper.
   public
-  def self.history(raw, pid, nth)
+  def self.history(type, pid, nth)
     dir = ENV[ZENLOG_DIR] + "/pids/" + pid.to_s
     debug {"Log dir: #{dir}\n"}
     exit false unless File.directory? dir
-    name = raw ? "R" : "P"
+
+    die "Invalid type '#{type}'" unless type =~ /^[PRE]$/;
+
+    name = type
 
     if nth >= 0
       files = [dir + "/" + name * (nth + 1)]

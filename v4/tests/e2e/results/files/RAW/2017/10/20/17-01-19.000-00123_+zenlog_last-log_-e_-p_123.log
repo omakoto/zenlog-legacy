@@ -1,0 +1,2 @@
+$ [1;3;4;33mzenlog last-log -e -p 123[0m
+/tmp/zenlog-test/ENV/2017/10/20/17-01-17.000-00123_+zenlog_current-log_-e_-p_123.log

@@ -6,13 +6,17 @@ require_relative 'zenlog'
 
 BuiltIns.fail_unless_in_zenlog
 
-raw = false
+type = "P"
 nth = -1
 pid = ENV[ZENLOG_PID].to_i
 
 OptionParser.new { |opts|
   opts.on("-r", "Show RAW filenames, instead of SAN filenames.") do
-    raw = true
+    type = "R"
+  end
+
+  opts.on("-e", "Show ENV filenames, instead of SAN filenames.") do
+    type = "E"
   end
 
   opts.on("-nNUM", "Show last NUMth command log filename") do |v|
@@ -24,4 +28,4 @@ OptionParser.new { |opts|
   end
 }.order!
 
-BuiltIns.history(raw, pid, nth)
+BuiltIns.history(type, pid, nth)

@@ -1,5 +1,5 @@
 $ [1;3;4;33mzenlog history # history 1[0m
-/tmp/zenlog-test/SAN/2017/10/20/17-00-00.000-00123_+echo_ok;_tick_3.log
+/tmp/zenlog-test/SAN/2017/10/20/17-00-00.000-00123_+echo_ok_tick_3.log
 /tmp/zenlog-test/SAN/2017/10/20/17-00-05.000-00123_+cat_data_fstab_grep_-v_--_^#_.log
 /tmp/zenlog-test/SAN/2017/10/20/17-00-07.000-00123_+man_man.log
 /tmp/zenlog-test/SAN/2017/10/20/17-00-08.000-00123_+history_1_+zenlog_history_#_history_1.log
