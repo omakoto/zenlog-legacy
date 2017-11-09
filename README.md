@@ -1,6 +1,6 @@
 # Zenlog
 
-Zenlog is a wrapper around a login shell to save all command output to a separate log file for each command automatically, so you no longer need to use tee(1) to keep log files.
+Zenlog is a wrapper around a login shell to save all command output to a separate log file for each command automatically, so you no longer need to use tee(1) to save output in log files.
 
 Optionally Zenlog can capture meta information such as command start time, command finish time, current directory, git current branch, shell/environmental variables, etc, in a separate log file.
 
