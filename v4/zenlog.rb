@@ -94,10 +94,23 @@ module ZenCore
     exit exit_status
   end
 
+  def get_tty_link(file)
+    begin
+      target = File.readlink(file)
+      return target if target.start_with?("/dev/pts/")
+    rescue SystemCallError
+    end
+    return nil
+  end
+
   # Return the tty name for this process.
   def get_tty
-    tty = %x(tty 2>/dev/null).chomp
-    return tty if tty != ""
+    tty = get_tty_link("/proc/self/fd/0")
+    return tty if tty
+    tty = get_tty_link("/proc/self/fd/1")
+    return tty if tty
+    tty = get_tty_link("/proc/self/fd/2")
+    return tty if tty
 
     # Otherwise, just ask the ps command...
     pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null).chomp
@@ -169,6 +182,7 @@ module BuiltIns
   public
   def self.in_zenlog
     tty = get_tty
+    debug{"tty=#{tty}\n"}
     return (tty != nil) && (ENV[ZENLOG_TTY] == get_tty)
   end
 
