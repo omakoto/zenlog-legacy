@@ -73,6 +73,8 @@ ZENLOG_LOGGER_PID = '_ZENLOG_LOGGER_PID'
 
 $is_logger = false # Used to change the debug log color.
 
+$cached_tty = nil
+
 module ZenCore
   def say(*args, &block)
     message = args.join('') + (block ? block.call() : '')
@@ -97,25 +99,26 @@ module ZenCore
   def get_tty_link(file)
     begin
       target = File.readlink(file)
-      return target if target.start_with?("/dev/pts/")
+      return target if target =~ /^\/dev\/(?:tty|pts)/
     rescue SystemCallError
     end
     return nil
   end
 
-  # Return the tty name for this process.
-  def get_tty
-    tty = get_tty_link("/proc/self/fd/0")
-    return tty if tty
-    tty = get_tty_link("/proc/self/fd/1")
-    return tty if tty
-    tty = get_tty_link("/proc/self/fd/2")
-    return tty if tty
-
-    # Otherwise, just ask the ps command...
+  def get_tty_from_ps()
     pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null).chomp
     tty = '/dev/' + pstty
     return File.exist?(tty) ? tty : nil
+  end
+
+  # Return the tty name for this process.
+  def get_tty
+    return $cached_tty if $cached_tty
+    $cached_tty = get_tty_link("/proc/self/fd/0") \
+        or get_tty_link("/proc/self/fd/1") \
+        or get_tty_link("/proc/self/fd/2") \
+        or get_tty_from_ps()
+    return $cached_tty
   end
 
   # Remove ANSI escape sequences from a string.
