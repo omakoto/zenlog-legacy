@@ -264,35 +264,14 @@ module BuiltIns
 
       io_error_okay do
         # Send "stop log" to the logger directly.
-        fingerprint = Time.now.to_f.to_s
         zenlog_working = with_logger do |out|
-          out.print(STOP_LOG_MARKER, fingerprint, COMMAND_ARG_SEPARATOR, status, "\n")
+          out.print(STOP_LOG_MARKER, status, "\n")
         end
         if !zenlog_working
           return
         end
-
-        # Wait for ack to make sure the log file was actually written.
-        ack = STOP_LOG_ACK_MARKER + fingerprint + ":"
-        ifile = ENV[ZENLOG_COMMAND_IN]
-        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-          begin
-            Timeout::timeout(5) do
-              i.each_line do |line|
-                # say ">#{line}\n"
-                if line.start_with? ack
-                  debug "[Ack received]\n"
-                  lines = line[ack.length..-1].chomp
-                  print lines, "\n" if want_lines
-                  break
-                end
-              end
-            end
-          rescue Timeout::Error
-            say "zenlog: Timed out waiting for ACK from logger.\n"
-          end
-        end
       end
+      sync
     end
   end
 
@@ -404,16 +383,11 @@ module BuiltIns
 
   # Called by the logger to see if an incoming line is of a stop log
   # marker, and if so, returns the last log line (everything before the marker,
-  # in case the command last output line doesn't end with a NL) and a
-  # fingerprint, which needs to be sent back with an ACK.
+  # in case the command last output line doesn't end with a NL) and the string
+  # after the marker
   public
   def self.match_stop_log(in_line)
     return find_marker(in_line, STOP_LOG_MARKER)
-  end
-
-  public
-  def self.split_fingerprint_status(fingerprint_status)
-    return (fingerprint_status.to_s == "") ? "" : fingerprint_status.split(COMMAND_ARG_SEPARATOR, 2)
   end
 
   # Create an ACK marker with a fingerprint.
@@ -850,9 +824,8 @@ class ZenLogger
         end
 
         # Command stopped?
-        last_line, fingerprint_status = BuiltIns.match_stop_log(line)
-        if fingerprint_status
-          fingerprint, status = BuiltIns.split_fingerprint_status(fingerprint_status)
+        last_line, status = BuiltIns.match_stop_log(line)
+        if status
           if in_command
             debug {"Command finished: #{fingerprint}, status=#{status}\n"}
 
@@ -862,10 +835,6 @@ class ZenLogger
 
             stop_logging status
           end
-          # Note we always need to return ACK, even if not running a command.
-          @command_out.print(BuiltIns.get_stop_log_ack(fingerprint,
-              @num_lines_written))
-          next
         end
 
         # Child process finished?
