@@ -167,7 +167,8 @@ include ZenCore
 # Zenlog built-in commands.
 #-----------------------------------------------------------
 module BuiltIns
-  COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+  #COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+  COMMAND_MARKER = "!zenlog:"
   COMMAND_START_MARKER = COMMAND_MARKER + 'START_COMMAND:'
   STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
   STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
@@ -175,6 +176,8 @@ module BuiltIns
   COMMAND_ARG_SEPARATOR = COMMAND_MARKER + 'arg:'
 
   CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
+
+  SYNC_MARKER = COMMAND_MARKER + 'SYNC:'
 
   NEWLINE_REPLACEMENT = "\v"
 
@@ -236,6 +239,7 @@ module BuiltIns
           out.print("\n")
         end
       end
+      sync
     end
     return true
   end
@@ -286,6 +290,43 @@ module BuiltIns
             end
           rescue Timeout::Error
             say "zenlog: Timed out waiting for ACK from logger.\n"
+          end
+        end
+      end
+    end
+  end
+
+  private
+  def self.sync()
+    debug {"[Sync]\n"}
+    if in_zenlog
+      io_error_okay do
+        fingerprint = Time.now.to_f.to_s
+
+        sync_line = SYNC_MARKER + fingerprint + "\n"
+
+        zenlog_working = with_logger do |out|
+          out.print(sync_line)
+        end
+        if !zenlog_working
+          return
+        end
+
+        # Wait for ack to make sure the log file was actually written.
+        ifile = ENV[ZENLOG_COMMAND_IN]
+        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
+          begin
+            Timeout::timeout(5) do
+              i.each_line do |line|
+                debug {"reply: #{line}"}
+                if line == sync_line
+                  debug "[Sync reply received]\n"
+                  break
+                end
+              end
+            end
+          rescue Timeout::Error
+            say "zenlog: Timed out waiting for sync reply from logger.\n"
           end
         end
       end
@@ -379,6 +420,19 @@ module BuiltIns
   public
   def self.get_stop_log_ack(stop_log_fingerprint, log_lines)
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + ":" + (log_lines || 0).to_s + "\n"
+  end
+
+  # Called by the logger to see if an incoming line is of a sync
+  # marker, and if so, returns the part before the marker and the fingerprint
+  public
+  def self.match_sync(line)
+    return find_marker(line, SYNC_MARKER)
+  end
+
+  # Create an ACK marker with a fingerprint.
+  public
+  def self.get_sync_reply(fingerprint)
+    return SYNC_MARKER + fingerprint + "\n"
   end
 
   public
@@ -767,6 +821,19 @@ class ZenLogger
       @num_lines_written = 0
 
       @logger_in.each_line do |line| # TODO Make sure CR will split liens too.
+        # If it's a sync request, then just send back the same line.
+        last_line, fingerprint = BuiltIns.match_sync(line)
+        if fingerprint
+          debug {"sync request detected."}
+          @command_out.print(BuiltIns.get_sync_reply(fingerprint))
+
+          if last_line == ""
+            next
+          else
+            line = last_line
+          end
+        end
+
         # Command started? Then start logging.
         if !in_command
           command_env = BuiltIns.match_command_start(line)
