@@ -1,0 +1,11 @@
+#!/bin/bash
+
+medir="${0%/*}"
+
+export ZENLOG_RC="$medir/config/zenlogrc.rb"
+export ZENLOG_START_COMMAND="/bin/bash --noprofile --rcfile $medir/config/bashrc"
+export ZENLOG_DIR=/tmp/zenlog-test
+#export ZENLOG_DEBUG=1
+
+export PATH="$medir/../..:$PATH"
+zenlog

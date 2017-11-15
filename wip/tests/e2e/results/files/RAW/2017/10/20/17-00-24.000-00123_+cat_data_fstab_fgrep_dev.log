@@ -1,0 +1,2 @@
+$ [1;3;4;33mcat data/fstab | fgrep dev[0m
+[omitted]

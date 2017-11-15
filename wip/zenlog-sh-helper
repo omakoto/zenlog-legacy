@@ -1,0 +1,73 @@
+#!/bin/bash
+
+# Basic Zenlog bash helper functions.
+
+# Install it with:
+# . <(zenlog sh-helper)
+
+cat <<'EOF'
+
+# Same as "zenlog in_zenlog", except this one is faster.
+function zenlog_in_zenlog() {
+  [[ $(tty 2>/dev/null) == $ZENLOG_TTY ]]
+}
+
+function in_zenlog() {
+  zenlog_in_zenlog
+}
+
+# Run a command without logging the output.
+function _zenlog_nolog() {
+  "${@}"
+}
+alias 184=_zenlog_nolog
+
+# Run a command with forcing log, regardless of ZENLOG_ALWAYS_184_COMMANDS.
+function _zenlog_force_log() {
+  "${@}"
+}
+alias 186=_zenlog_force_log
+
+function _zenlog_current_log_helper() {
+  local san_name=$1 raw_name=$2 env_name=$3
+  shift 3
+  local OPTIND
+  local pid=$ZENLOG_PID
+  local name=$san_name
+  while getopts "rep:" opt; do
+    case "$opt" in
+      p) pid="$OPTARG" ;;
+      r) name=$raw_name ;;
+      e) name=$env_name ;;
+    esac
+  done
+  shift $(($OPTIND - 1))
+  readlink "${ZENLOG_DIR}/pids/${pid}/${name}" 2>/dev/null
+}
+
+# Basically same as "zenlog current-log", except this one is faster.
+function zenlog_current_log() {
+  _zenlog_current_log_helper P R E "$@"
+}
+
+# Basically same as "zenlog last-log", except this one is faster.
+function zenlog_last_log() {
+  _zenlog_current_log_helper PP RR EE "$@"
+}
+
+# Print the current command's command line.  Use with "zenlog start-command".
+function bash_last_command() {
+  # Use echo to remove newlines.
+  echo $(HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//')
+}
+
+function bash_dump_env() {
+  {
+    echo "PWD: $(pwd)"
+    echo "git HEAD: $(git rev-parse HEAD) $(git rev-parse --abbrev-ref HEAD)"
+    env # dump environmental variables.
+    # declare -p # this dumps shell variables too, but also functions, and may be too big.
+  } 2>/dev/null
+}
+
+EOF

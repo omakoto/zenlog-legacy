@@ -1,0 +1,54 @@
+# -*- mode:shell-script -*-
+
+# Zenlog compatibility shell functions; provide functions that
+# zenlog(v1) -s provided.
+
+set -e
+
+# Base sh-helper.
+script_dir="${0%/*}"
+
+"${script_dir}"/zenlog sh-helper
+
+zenlog="$(readlink -e "${script_dir}/zenlog")"
+
+# Legacy sh-helper.
+cat <<'EOF' | sed -e "s!ZENLOG!\"${zenlog}\"!g"
+
+zenlog_echo_command() {
+  ZENLOG show-command "$@"
+}
+
+zenlog_fail_if_not_in_zenlog() {
+  ZENLOG fail-unless-in-zenlog
+}
+
+zenlog_history() {
+  ZENLOG history "$@"
+}
+
+zenlog_open_viewer() {
+  ZENLOG open-viewer "${@}"
+}
+
+zenlog_open_last_log() {
+  ZENLOG open-last-log "${@}"
+}
+
+zenlog_cat_last_log() {
+  ZENLOG cat-last-log "${@}"
+}
+
+zenlog_cat_last_log_content() {
+  ZENLOG cat-last-log-content "${@}"
+}
+
+# Useful: when used with -p PID.
+zenlog_open_current_log() {
+  ZENLOG open-current-log "${@}"
+}
+
+zenlog_outer_tty() {
+  ZENLOG outer-tty
+}
+EOF

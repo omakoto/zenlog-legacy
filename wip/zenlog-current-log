@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+
+# Show the previous (i.e. P or R) log filename.
+# Note the zenlog_(current|las)_log functions provided by
+# "zenlog sh-helper" are a lot faster than this version.
+
+require 'pathname'
+require 'optionparser'
+require_relative 'zenlog'
+
+BuiltIns.fail_unless_in_zenlog
+
+type = "P"
+pid = ENV[ZENLOG_PID].to_i
+
+OptionParser.new { |opts|
+  opts.on("-r", "Show RAW filenames, instead of SAN filenames.") do
+    type = "R"
+  end
+
+  opts.on("-e", "Show ENV filenames, instead of SAN filenames.") do
+    type = "E"
+  end
+
+  opts.on("-pPID", "PID of a zenlog session to show log instead of current session.") do |v|
+    pid = v.to_i
+  end
+}.order!
+
+BuiltIns.history(type, pid, 0)

@@ -111,12 +111,18 @@ module ZenCore
     return File.exist?(tty) ? tty : nil
   end
 
+  def get_tty_from_command()
+    tty = %x(tty 2>/dev/null).chomp
+    return File.exist?(tty) ? tty : nil
+  end
+
   # Return the tty name for this process.
   def get_tty
     return $cached_tty if $cached_tty
-    $cached_tty = get_tty_link("/proc/self/fd/0") \
+    $cached_tty =  get_tty_link("/proc/self/fd/0") \
         or get_tty_link("/proc/self/fd/1") \
         or get_tty_link("/proc/self/fd/2") \
+        or get_tty_from_command \
         or get_tty_from_ps()
     return $cached_tty
   end

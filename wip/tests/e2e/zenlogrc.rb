@@ -1,0 +1,1 @@
+ENV[ZENLOG_ALWAYS_NO_LOG_COMMANDS] = "(?:fgrep|man)"

@@ -1,0 +1,19 @@
+#!bash
+
+ZENLOG=$(readlink -m "$(dirname "${BASH_SOURCE[0]}")"/../../../zenlog)
+echo $ZENLOG
+
+. <("$ZENLOG" -s)
+
+preexec() {
+  "$ZENLOG" start-command-with-env "$(bash_dump_env)" $(bash_last_command)
+}
+
+prompt_command() {
+  status=$?
+  "$ZENLOG" stop-log $status
+}
+
+PS1='[\w \$\$=$$ ZENLOG_PID=$ZENLOG_PID]\n\$ '
+PS0='$(preexec)'
+PROMPT_COMMAND="prompt_command"
