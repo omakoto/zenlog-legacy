@@ -119,11 +119,10 @@ module ZenCore
   # Return the tty name for this process.
   def get_tty
     return $cached_tty if $cached_tty
-    $cached_tty = \
-           get_tty_from_command() \
-        or get_tty_link("/proc/self/fd/0") \
+    $cached_tty =  get_tty_link("/proc/self/fd/0") \
         or get_tty_link("/proc/self/fd/1") \
         or get_tty_link("/proc/self/fd/2") \
+        or get_tty_from_command \
         or get_tty_from_ps()
     return $cached_tty
   end
@@ -171,13 +170,11 @@ module BuiltIns
   COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
   COMMAND_START_MARKER = COMMAND_MARKER + 'START_COMMAND:'
   STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
+  STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
 
   COMMAND_ARG_SEPARATOR = COMMAND_MARKER + 'arg:'
 
   CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
-
-  SYNC_MARKER = COMMAND_MARKER + 'SYNC:'
-  SYNC_REPLY_MARKER = COMMAND_MARKER + 'SYNC_REPLY:'
 
   NEWLINE_REPLACEMENT = "\v"
 
@@ -239,8 +236,6 @@ module BuiltIns
           out.print("\n")
         end
       end
-
-      sync
     end
     return true
   end
@@ -265,52 +260,16 @@ module BuiltIns
 
       io_error_okay do
         # Send "stop log" to the logger directly.
+        fingerprint = Time.now.to_f.to_s
         zenlog_working = with_logger do |out|
-          out.print(STOP_LOG_MARKER, COMMAND_ARG_SEPARATOR, status, "\n")
+          out.print(STOP_LOG_MARKER, fingerprint, COMMAND_ARG_SEPARATOR, status, "\n")
         end
         if !zenlog_working
           return
         end
 
-        # # Wait for ack to make sure the log file was actually written.
-        # ack = STOP_LOG_ACK_MARKER + fingerprint + ":"
-        # ifile = ENV[ZENLOG_COMMAND_IN]
-        # File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-        #   begin
-        #     Timeout::timeout(5) do
-        #       i.each_line do |line|
-        #         # say ">#{line}\n"
-        #         if line.start_with? ack
-        #           debug "[Ack received]\n"
-        #           lines = line[ack.length..-1].chomp
-        #           print lines, "\n" if want_lines
-        #           break
-        #         end
-        #       end
-        #     end
-        #   rescue Timeout::Error
-        #     say "zenlog: Timed out waiting for ACK from logger.\n"
-        #   end
-        # end
-      end
-
-      sync
-    end
-  end
-
-  private
-  def self.sync
-    debug "[Sync]\n"
-    if in_zenlog
-      io_error_okay do
-        # Send "stop log" to the logger directly.
-        fingerprint = Time.now.to_f.to_s
-        with_logger do |out|
-          out.print(SYNC_MARKER, fingerprint "\n")
-        end
-
-        ack = SYNC_REPLY_MARKER + fingerprint + ":"
-
+        # Wait for ack to make sure the log file was actually written.
+        ack = STOP_LOG_ACK_MARKER + fingerprint + ":"
         ifile = ENV[ZENLOG_COMMAND_IN]
         File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
           begin
@@ -404,19 +363,11 @@ module BuiltIns
 
   # Called by the logger to see if an incoming line is of a stop log
   # marker, and if so, returns the last log line (everything before the marker,
-  # in case the command last output line doesn't end with a NL).
+  # in case the command last output line doesn't end with a NL) and a
+  # fingerprint, which needs to be sent back with an ACK.
   public
   def self.match_stop_log(in_line)
-    matched = find_marker(in_line, STOP_LOG_MARKER)
-    return matched ? matched[1] : nil
-  end
-
-  # Called by the logger to see if an incoming line is of a sync
-  # marker, and if so, returns the fingerprint.
-  public
-  def self.match_stop_log(in_line)
-    matched = find_marker(in_line, STOP_LOG_MARKER)
-    return matched ? matched[1] : nil
+    return find_marker(in_line, STOP_LOG_MARKER)
   end
 
   public
@@ -426,8 +377,8 @@ module BuiltIns
 
   # Create an ACK marker with a fingerprint.
   public
-  def self.get_sync_reply_marker(fingerprint, log_lines)
-    return SYNC_REPLY_MARKER + stop_log_fingerprint  + "\n"
+  def self.get_stop_log_ack(stop_log_fingerprint, log_lines)
+    return STOP_LOG_ACK_MARKER + stop_log_fingerprint + ":" + (log_lines || 0).to_s + "\n"
   end
 
   public
