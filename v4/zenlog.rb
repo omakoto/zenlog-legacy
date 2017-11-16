@@ -682,7 +682,7 @@ class ZenLogger
         now.strftime('%Y/%m/%d/%H-%M-%S.%L'),
         @pid,
         tag_str,
-        command_str).sub(%r(/+), "/") # compress consecutive /s.
+        command_str).gsub(%r(/+), "/") # compress consecutive /s.
   end
 
   private
