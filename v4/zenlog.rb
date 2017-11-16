@@ -179,6 +179,8 @@ module BuiltIns
 
   SYNC_MARKER = COMMAND_MARKER + 'SYNC:'
 
+  REQUEST_LINES_MARKER = COMMAND_MARKER + 'REQUEST_LINES:'
+
   NEWLINE_REPLACEMENT = "\v"
 
   private
@@ -272,6 +274,11 @@ module BuiltIns
         end
       end
       sync
+      zenlog_working = with_logger do |out|
+        out.print(REQUEST_LINES_MARKER, "\n")
+      end
+      lines = read_reply
+      print lines, "\n" if want_lines
     end
   end
 
@@ -292,24 +299,29 @@ module BuiltIns
         end
 
         # Wait for ack to make sure the log file was actually written.
-        ifile = ENV[ZENLOG_COMMAND_IN]
-        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-          begin
-            Timeout::timeout(5) do
-              i.each_line do |line|
-                debug {"reply: #{line}"}
-                if line == sync_line
-                  debug "[Sync reply received]\n"
-                  break
-                end
-              end
-            end
-          rescue Timeout::Error
-            say "zenlog: Timed out waiting for sync reply from logger.\n"
-          end
+        if read_reply {|line| sync_line}
+          debug "[Sync reply received]\n"
         end
       end
     end
+  end
+
+  private
+  def self.read_reply(&expect)
+    ifile = ENV[ZENLOG_COMMAND_IN]
+    File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
+      begin
+        Timeout::timeout(5) do
+          i.each_line do |line|
+            debug {"reply: #{line}"}
+            return line if expect == nil || expect.call(line)
+          end
+        end
+      rescue Timeout::Error
+        say "zenlog: Timed out waiting for sync reply from logger.\n"
+      end
+    end
+    return nil
   end
 
   # Subcommand:
@@ -401,6 +413,13 @@ module BuiltIns
   public
   def self.match_sync(line)
     return find_marker(line, SYNC_MARKER)
+  end
+
+  # Called by the logger to see if an incoming line is of a line number request
+  # marker.
+  public
+  def self.match_request_lines(line)
+    return line.start_with? REQUEST_LINES_MARKER
   end
 
   # Create an ACK marker with a fingerprint.
@@ -806,6 +825,11 @@ class ZenLogger
           else
             line = last_line
           end
+        end
+
+        if BuiltIns.match_request_lines(line)
+          @command_out.print(@num_lines_written.to_s, "\n")
+          next
         end
 
         # Command started? Then start logging.
