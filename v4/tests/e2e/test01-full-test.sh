@@ -10,6 +10,8 @@ cd "$medir"
 
 #export ZENLOG_DEBUG=1 ; echo $'command cat /etc/fstab\nexit' | run_zenlog; exit 0
 
+unset PROMPT_HELP # Hack to ignore Makoto's environmental variables...
+
 run_zenlog <<EOF
 echo ok; tick 3
 cat data/fstab | grep -v -- '^#'

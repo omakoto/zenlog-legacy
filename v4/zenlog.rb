@@ -177,9 +177,8 @@ module BuiltIns
 
   CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
 
-  SYNC_MARKER = COMMAND_MARKER + 'SYNC:'
-
-  REQUEST_LINES_MARKER = COMMAND_MARKER + 'REQUEST_LINES:'
+  REQUEST_MARKER = COMMAND_MARKER + 'REQ:'
+  REPLY_MARKER = COMMAND_MARKER + 'REP:'
 
   NEWLINE_REPLACEMENT = "\v"
 
@@ -241,7 +240,7 @@ module BuiltIns
           out.print("\n")
         end
       end
-      sync
+      request # sync with the logger.
     end
     return true
   end
@@ -273,23 +272,20 @@ module BuiltIns
           return
         end
       end
-      sync
-      zenlog_working = with_logger do |out|
-        out.print(REQUEST_LINES_MARKER, "\n")
-      end
-      lines = read_reply
-      print lines, "\n" if want_lines
+      reply = request "lines"
+      print reply[0], "\n" if want_lines
     end
   end
 
   private
-  def self.sync()
-    debug {"[Sync]\n"}
+  def self.request(*args)
+    debug {"request: #{args&.join(', ')}\n"}
     if in_zenlog
       io_error_okay do
         fingerprint = Time.now.to_f.to_s
 
-        sync_line = SYNC_MARKER + fingerprint + "\n"
+        sync_line = REQUEST_MARKER + \
+            [fingerprint, *args].join(COMMAND_ARG_SEPARATOR) + "\n"
 
         zenlog_working = with_logger do |out|
           out.print(sync_line)
@@ -298,30 +294,28 @@ module BuiltIns
           return
         end
 
-        # Wait for ack to make sure the log file was actually written.
-        if read_reply {|line| sync_line}
-          debug "[Sync reply received]\n"
-        end
-      end
-    end
-  end
+        # Wait for reply.
+        reply_prefix = REPLY_MARKER + fingerprint + COMMAND_ARG_SEPARATOR
 
-  private
-  def self.read_reply(&expect)
-    ifile = ENV[ZENLOG_COMMAND_IN]
-    File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-      begin
-        Timeout::timeout(5) do
-          i.each_line do |line|
-            debug {"reply: #{line}"}
-            return line if expect == nil || expect.call(line)
+        ifile = ENV[ZENLOG_COMMAND_IN]
+        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
+          begin
+            Timeout::timeout(5) do
+              i.each_line do |line|
+                debug {"Reply: #{line}"}
+                if line.start_with? reply_prefix
+                  # "-2" to remove the newline too.
+                  return line[reply_prefix.length .. -2].split(COMMAND_ARG_SEPARATOR)
+                end
+              end
+            end
+          rescue Timeout::Error
+            say "zenlog: Timed out waiting for sync reply from logger.\n"
           end
+          return nil
         end
-      rescue Timeout::Error
-        say "zenlog: Timed out waiting for sync reply from logger.\n"
       end
     end
-    return nil
   end
 
   # Subcommand:
@@ -408,24 +402,23 @@ module BuiltIns
     return STOP_LOG_ACK_MARKER + stop_log_fingerprint + ":" + (log_lines || 0).to_s + "\n"
   end
 
-  # Called by the logger to see if an incoming line is of a sync
+  # Called by the logger to see if an incoming line is of a request
   # marker, and if so, returns the part before the marker and the fingerprint
   public
-  def self.match_sync(line)
-    return find_marker(line, SYNC_MARKER)
-  end
-
-  # Called by the logger to see if an incoming line is of a line number request
-  # marker.
-  public
-  def self.match_request_lines(line)
-    return line.start_with? REQUEST_LINES_MARKER
+  def self.match_request(line)
+    prefix, suffix = find_marker(line, REQUEST_MARKER)
+    if suffix
+      fingerprint_args = suffix.split(COMMAND_ARG_SEPARATOR)
+      return prefix, fingerprint_args[0], fingerprint_args[1..-1]
+    end
+    return nil
   end
 
   # Create an ACK marker with a fingerprint.
   public
-  def self.get_sync_reply(fingerprint)
-    return SYNC_MARKER + fingerprint + "\n"
+  def self.get_reply(fingerprint, args)
+    return REPLY_MARKER + fingerprint + COMMAND_ARG_SEPARATOR + \
+          args.join(COMMAND_ARG_SEPARATOR) + "\n"
   end
 
   public
@@ -815,21 +808,21 @@ class ZenLogger
 
       @logger_in.each_line do |line| # TODO Make sure CR will split liens too.
         # If it's a sync request, then just send back the same line.
-        last_line, fingerprint = BuiltIns.match_sync(line)
+        last_line, fingerprint, args = BuiltIns.match_request(line)
         if fingerprint
-          debug {"sync request detected."}
-          @command_out.print(BuiltIns.get_sync_reply(fingerprint))
+          debug {"Request detected: fp=#{fingerprint} args=#{args.inspect}\n"}
+          reply_args = []
+          if args && args[0] == "lines"
+            reply_args = [@num_lines_written.to_s]
+          end
+
+          @command_out.print(BuiltIns.get_reply(fingerprint, reply_args))
 
           if last_line == ""
             next
           else
-            line = last_line
+            line = last_line # fallthrough with the prefix string.
           end
-        end
-
-        if BuiltIns.match_request_lines(line)
-          @command_out.print(@num_lines_written.to_s, "\n")
-          next
         end
 
         # Command started? Then start logging.
