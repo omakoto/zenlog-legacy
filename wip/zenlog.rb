@@ -167,15 +167,21 @@ include ZenCore
 # Zenlog built-in commands.
 #-----------------------------------------------------------
 
-module PipeHelper
-  #COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
-  COMMAND_MARKER = "!zenlog:"
+USE_READABLE_CONSTS = true
 
-  ESCAPE = "\x1a"     #SUB
-  SEPARATOR = "\x1f"  #US
+module PipeHelper
+  if USE_READABLE_CONSTS
+    COMMAND_MARKER = "!zenlog:"
+    ESCAPE = "~"
+    SEPARATOR = ","
+  else
+    COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+    ESCAPE = "\x1a"     #SUB
+    SEPARATOR = "\x1f"  #US
+  end
 
   def self._encode_single(s)
-    return s.gsub /[\n#{ESCAPE}#{SEPARATOR}]/o do
+    return s.to_s.gsub /[\n#{ESCAPE}#{SEPARATOR}]/o do
       |c| "#{ESCAPE}#{sprintf '%02x', c.ord}"
     end
   end
@@ -186,11 +192,11 @@ module PipeHelper
     end
   end
 
-  def self.encode(args)
+  def self.encode(*args)
     return COMMAND_MARKER + args.map {|s| _encode_single s}.join(SEPARATOR) + "\n"
   end
 
-  def self._decode(args_line)
+  def self.decode(args_line)
     return args_line.split(SEPARATOR).map {|s| _decode_single s}
   end
 
@@ -198,28 +204,22 @@ module PipeHelper
     pos = line.index(COMMAND_MARKER)
     return nil unless pos
 
-    return line[0, pos], _decode(line[pos + COMMAND_MARKER.length .. -1].chomp)
+    return line[0, pos], decode(line[pos + COMMAND_MARKER.length .. -1].chomp)
   end
 end
+
+#-----------------------------------------------------------
+# Global constants
+#-----------------------------------------------------------
+START_COMMAND = "start"
+STOP_COMMAND = "stop"
+SYNC_REQ_COMMAND = "sync"
+CHILD_FINISHED = "child_finished"
 
 #-----------------------------------------------------------
 # Zenlog built-in commands.
 #-----------------------------------------------------------
 module BuiltIns
-  COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
-  #COMMAND_MARKER = "!zenlog:"
-  COMMAND_START_MARKER = COMMAND_MARKER + 'START_COMMAND:'
-  STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
-  STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
-
-  COMMAND_ARG_SEPARATOR = COMMAND_MARKER + 'arg:'
-
-  CHILD_FINISHED_MARKER = COMMAND_MARKER + 'CHILD_FINISHED:'
-
-  SYNC_MARKER = COMMAND_MARKER + 'SYNC:'
-
-  NEWLINE_REPLACEMENT = "\v"
-
   private
   def self.io_error_okay(&block)
     begin
@@ -268,24 +268,42 @@ module BuiltIns
   def self.start_command(command_line_words, env:nil)
     debug {"[Command start: #{command_line_words.join(" ")}]\n"}
     if in_zenlog
+      fingerprint = Time.now.to_f.to_s
       io_error_okay do
         # Send "command start" to the logger directly.
-        with_logger do |out|
-          out.print(
-              COMMAND_START_MARKER,
-              command_line_words.join(" ").gsub(/\r*\n/, " "))
-          out.print(COMMAND_ARG_SEPARATOR, env.gsub("\n", NEWLINE_REPLACEMENT)) if env
-          out.print("\n")
+        zenlog_working = with_logger do |out|
+          out.print(PipeHelper.encode(START_COMMAND, fingerprint, env,
+              command_line_words.join(" ")))
+        end
+        if zenlog_working
+          wait_reply do |args|
+            return (args[0] == START_COMMAND) && (args[1] == fingerprint)
+          end
         end
       end
-      sync
     end
     return true
   end
 
-  public
-  def self.decode_env(env)
-    return env.gsub(NEWLINE_REPLACEMENT, "\n")
+  private
+  def self.wait_reply(&block)
+    ifile = ENV[ZENLOG_COMMAND_IN]
+    File.readable?(ifile) && open(ifile, "r") do |i|
+      begin
+        Timeout::timeout(5) do
+          i.each_line do |line|
+            debug {"Reply: #{line}"}
+            _ignore, args = PipeHelper.try_decode(line)
+            if args && block.call(args)
+              debug "[Reply received]\n"
+              break
+            end
+          end
+        end
+      rescue Timeout::Error
+        say "zenlog: Timed out waiting for reply from logger.\n"
+      end
+    end
   end
 
   # Subcommand: zenlog stop-log
@@ -299,73 +317,23 @@ module BuiltIns
         want_lines = true
         args.shift
       end
-      status = (args.length > 0) ? args.shift : ""
+      exit_status = (args.length > 0) ? args.shift : ""
 
       io_error_okay do
         # Send "stop log" to the logger directly.
         fingerprint = Time.now.to_f.to_s
         zenlog_working = with_logger do |out|
-          out.print(STOP_LOG_MARKER, fingerprint, COMMAND_ARG_SEPARATOR, status, "\n")
+          out.print(PipeHelper.encode(STOP_COMMAND, fingerprint, exit_status))
         end
-        if !zenlog_working
-          return
-        end
-
-        # Wait for ack to make sure the log file was actually written.
-        ack = STOP_LOG_ACK_MARKER + fingerprint + ":"
-        ifile = ENV[ZENLOG_COMMAND_IN]
-        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-          begin
-            Timeout::timeout(5) do
-              i.each_line do |line|
-                # say ">#{line}\n"
-                if line.start_with? ack
-                  debug "[Ack received]\n"
-                  lines = line[ack.length..-1].chomp
-                  print lines, "\n" if want_lines
-                  break
-                end
-              end
+        if zenlog_working
+          wait_reply do |args|
+            if (args[0] == STOP_COMMAND) && (args[1] == fingerprint)
+              # Print number of log lines.
+              print args[2], "\n" if want_lines
+              return true
+            else
+              return false
             end
-          rescue Timeout::Error
-            say "zenlog: Timed out waiting for ACK from logger.\n"
-          end
-        end
-      end
-    end
-  end
-
-  private
-  def self.sync()
-    debug "[Sync]\n"
-    if in_zenlog
-      io_error_okay do
-        fingerprint = Time.now.to_f.to_s
-
-        sync_line = SYNC_MARKER + fingerprint + "\n"
-
-        zenlog_working = with_logger do |out|
-          out.print("\n", sync_line)
-        end
-        if !zenlog_working
-          return
-        end
-
-        # Wait for ack to make sure the log file was actually written.
-        ifile = ENV[ZENLOG_COMMAND_IN]
-        File.readable?(ENV[ZENLOG_COMMAND_IN]) && open(ifile, "r") do |i|
-          begin
-            Timeout::timeout(5) do
-              i.each_line do |line|
-                debug {"reply: #{line}"}
-                if line == sync_line
-                  debug "[Sync reply received]\n"
-                  break
-                end
-              end
-            end
-          rescue Timeout::Error
-            say "zenlog: Timed out waiting for sync reply from logger.\n"
           end
         end
       end
@@ -418,62 +386,6 @@ module BuiltIns
       out.print line
     end
     return true
-  end
-
-  # Find substring in str, and return pre and post strings. (or nil)
-  private
-  def self.find_marker(str, substring)
-    pos = str.index(substring)
-    return nil unless pos
-    return str[0, pos], str[pos + substring.length .. -1].chomp
-  end
-
-  # Called by the logger to see if an incoming line is of a command start
-  # marker, and if so, returns the command line.
-  public
-  def self.match_command_start(in_line)
-    matched = find_marker(in_line, COMMAND_START_MARKER)
-    return matched ? matched[1] : nil
-  end
-
-  public
-  def self.split_command_and_env(command_env)
-    return (command_env.to_s == "") ? "" : command_env.split(COMMAND_ARG_SEPARATOR, 2)
-  end
-
-  # Called by the logger to see if an incoming line is of a stop log
-  # marker, and if so, returns the last log line (everything before the marker,
-  # in case the command last output line doesn't end with a NL) and a
-  # fingerprint, which needs to be sent back with an ACK.
-  public
-  def self.match_stop_log(in_line)
-    return find_marker(in_line, STOP_LOG_MARKER)
-  end
-
-  public
-  def self.split_fingerprint_status(fingerprint_status)
-    return (fingerprint_status.to_s == "") ? "" : fingerprint_status.split(COMMAND_ARG_SEPARATOR, 2)
-  end
-
-  # Create an ACK marker with a fingerprint.
-  public
-  def self.get_stop_log_ack(stop_log_fingerprint, log_lines)
-    return STOP_LOG_ACK_MARKER + stop_log_fingerprint + ":" + (log_lines || 0).to_s + "\n"
-  end
-
-  public
-  def self.match_sync(line)
-    return line.start_with? SYNC_MARKER
-  end
-
-  public
-  def self.get_child_finished_marker()
-    return CHILD_FINISHED_MARKER + "\n"
-  end
-
-  public
-  def self.match_child_finished_marker(str)
-    return str.include? CHILD_FINISHED_MARKER
   end
 
   # Subcommand
@@ -749,7 +661,7 @@ class ZenLogger
       @env = open_logfile env_name
       @env.print "Command: ", command_line, "\n"
       write_now_to_env "Start time", now
-      @env.print BuiltIns.decode_env(env)
+      @env.print env
       @env.flush
     end
 
@@ -853,50 +765,51 @@ class ZenLogger
 
       @logger_in.each_line do |line| # TODO Make sure CR will split liens too.
         debug {"line: #{line}"}
-        # If it's a sync request, then just send back the same line.
-        if BuiltIns.match_sync(line)
-          debug {"sync request detected."}
-          @command_out.print(line, "\n")
-          next
-        end
 
-        # Command started? Then start logging.
-        if !in_command
-          command_env = BuiltIns.match_command_start(line)
-          if command_env != nil
-            command, env = BuiltIns.split_command_and_env(command_env)
-            debug {"Command started: \"#{command}\"\n"}
-            # debug {"env: \"#{env}\"\n"} if env # Too verbose
+        pre_line, args = PipeHelper.try_decode(line)
 
-            in_command = true
+        if pre_line
+          # Handle start request.
+          if args[0] == START_COMMAND
+            fingerprint = args[1]
+            env = args[2]
+            command = args[3]
 
-            start_logging(command, env)
+            if !in_command
+              in_command = true
+              debug {"Command started: \"#{command}\"\n"}
+              start_logging(command, env)
+            else
+               say "zenlog: Command start requested but already in command: \"#{command}\"\n"
+            end
+
+            @command_out.print(PipeHelper.encode(START_COMMAND, fingerprint))
             next
           end
-        end
 
-        # Command stopped?
-        last_line, fingerprint_status = BuiltIns.match_stop_log(line)
-        if fingerprint_status
-          fingerprint, status = BuiltIns.split_fingerprint_status(fingerprint_status)
-          if in_command
-            debug {"Command finished: #{fingerprint}, status=#{status}\n"}
+          # Handle stop request.
+          if args[0] == STOP_COMMAND
+            figeprint = args[1]
+            exit_status = args[2]
 
-            in_command = false
+            if in_command
+              in_command = false
+              debug {"Command finished: #{fingerprint}, status=#{status}\n"}
 
-            write_log(last_line, false) if last_line.to_s != ""
-
-            stop_logging status
+              write_log(pre_line, false) if pre_line.to_s != ""
+              stop_logging exit_status
+            end
+            @command_out.print(PipeHelper.encode(STOP_COMMAND, fingerprint, @num_lines_written))
+            next
           end
-          # Note we always need to return ACK, even if not running a command.
-          @command_out.print(BuiltIns.get_stop_log_ack(fingerprint,
-              @num_lines_written))
-          next
-        end
 
-        # Child process finished?
-        if BuiltIns.match_child_finished_marker(line)
-          on_child_finished
+          if args[0] == CHILD_FINISHED
+            on_child_finished
+            next
+          end
+
+          say "zenlog: Unknown command '#{args[0]}' received.\n"
+          next
         end
 
         write_log line, ready_check:@logger_in
@@ -1017,7 +930,7 @@ class ZenStarter
       @command_in.close()
 
       Signal.trap("CHLD") do
-        @logger_out.print(BuiltIns.get_child_finished_marker)
+        @logger_out.print(PipeHelper.encode(CHILD_FINISHED))
         @logger_out.close()
       end
 
