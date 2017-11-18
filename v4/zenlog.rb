@@ -167,8 +167,8 @@ include ZenCore
 # Zenlog built-in commands.
 #-----------------------------------------------------------
 module BuiltIns
-  #COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
-  COMMAND_MARKER = "!zenlog:"
+  COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+  #COMMAND_MARKER = "!zenlog:"
   COMMAND_START_MARKER = COMMAND_MARKER + 'START_COMMAND:'
   STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
   STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
