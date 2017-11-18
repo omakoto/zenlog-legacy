@@ -1,11 +1,14 @@
 #!/usr/bin/env ruby
 $VERBOSE = true
 
-# Detect crash and start bash instead.
+# Crash detection and fallback.
 BEGIN {
   MY_REALPATH = File.realpath(__FILE__)
   STARTED_AS_SCRIPT = MY_REALPATH == File.realpath($0)
 
+  # If invoked with no arguments, that's a new session start request.
+  # In this case, detect an unexpected process termination, and
+  # start /bin/sh instead.
   if STARTED_AS_SCRIPT && ARGV.length == 0
     # Do it only when requested to start a new session.
     at_exit do
@@ -20,7 +23,7 @@ BEGIN {
         end
         $stderr.puts "zenlog: Unable to start a new session. " +
             "Starting bash instead.\r"
-        exec "/bin/bash"
+        exec "/bin/sh"
       end
     end
   end
@@ -108,12 +111,12 @@ module ZenCore
   def get_tty_from_ps()
     pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null).chomp
     tty = '/dev/' + pstty
-    return File.exist?(tty) ? tty : nil
+    return File.writable?(tty) ? tty : nil
   end
 
   def get_tty_from_command()
     tty = %x(tty 2>/dev/null).chomp
-    return File.exist?(tty) ? tty : nil
+    return File.writable?(tty) ? tty : nil
   end
 
   # Return the tty name for this process.
@@ -156,8 +159,8 @@ module ZenCore
 
   def start_emergency_shell()
     ENV.delete_if {|k, v| k.start_with? ZENLOG_PREFIX}
-    say "Starting bash instead...\n"
-    exec "/bin/bash"
+    say "Starting /bin/sh instead...\n"
+    exec "/bin/sh"
   end
 end
 
@@ -204,7 +207,9 @@ module PipeHelper
     pos = line.index(COMMAND_MARKER)
     return nil unless pos
 
-    return line[0, pos], decode(line[pos + COMMAND_MARKER.length .. -1].chomp)
+    pre = (pos > 0) ? line[0, pos] : nil
+
+    return pre, decode(line[pos + COMMAND_MARKER.length .. -1].chomp)
   end
 end
 
@@ -706,7 +711,7 @@ class ZenLogger
   end
 
   private
-  def write_log(line, flush=true, ready_check:nil)
+  def write_log(line, flush:true, ready_check:nil)
     if AUTOSYNC_LOG
       flush = false
     else
@@ -802,7 +807,7 @@ class ZenLogger
               in_command = false
               debug {"Command finished: #{fingerprint}, status=#{exit_status}\n"}
 
-              write_log(pre_line, false) if pre_line.to_s != ""
+              write_log(pre_line, flush:false) if pre_line
               stop_logging exit_status
             end
             @command_out.print(PipeHelper.encode(STOP_COMMAND, fingerprint, @num_lines_written))

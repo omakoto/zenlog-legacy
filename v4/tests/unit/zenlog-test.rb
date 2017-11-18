@@ -20,7 +20,7 @@ class TestPipeHelper < Test::Unit::TestCase
   end
 
   def check_encode_decode(prefix, args)
-    encoded = prefix + PipeHelper.encode(*args)
+    encoded = prefix.to_s + PipeHelper.encode(*args)
     decoded_prefix, decoded_args = PipeHelper.try_decode(encoded)
 
     assert_equal(prefix, decoded_prefix)
@@ -28,12 +28,12 @@ class TestPipeHelper < Test::Unit::TestCase
   end
 
   def test_encode_decode
-    check_encode_decode "", []
+    check_encode_decode nil, []
     check_encode_decode "abc", []
     check_encode_decode "abc\x1a", []
 
-    check_encode_decode "", %w(aa bbb cc d)
-    check_encode_decode "", %w(a)
+    check_encode_decode nil, %w(aa bbb cc d)
+    check_encode_decode nil, %w(a)
     check_encode_decode "abc", ["\nab\x1a,  ", "def"]
   end
 
