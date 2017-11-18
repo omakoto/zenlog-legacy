@@ -175,6 +175,7 @@ end
 #-----------------------------------------------------------
 class CommandLine
   def initialize(command_line, pos = -1)
+    command_line ||= ""
     # Full command line as a single string.
     @command_line = command_line
 
