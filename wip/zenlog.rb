@@ -166,9 +166,48 @@ include ZenCore
 #-----------------------------------------------------------
 # Zenlog built-in commands.
 #-----------------------------------------------------------
-module BuiltIns
-#  COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+
+module PipeHelper
+  #COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
   COMMAND_MARKER = "!zenlog:"
+
+  ESCAPE = "\x1a"     #SUB
+  SEPARATOR = "\x1f"  #US
+
+  def self._encode_single(s)
+    return s.gsub /[\n#{ESCAPE}#{SEPARATOR}]/o do
+      |c| "#{ESCAPE}#{sprintf '%02x', c.ord}"
+    end
+  end
+
+  def self._decode_single(s)
+    return s.gsub /#{ESCAPE}../o do
+      |ehex| ehex[1..-1].to_i(16).chr
+    end
+  end
+
+  def self.encode(args)
+    return COMMAND_MARKER + args.map {|s| _encode_single s}.join(SEPARATOR) + "\n"
+  end
+
+  def self._decode(args_line)
+    return args_line.split(SEPARATOR).map {|s| _decode_single s}
+  end
+
+  def self.try_decode(line)
+    pos = line.index(COMMAND_MARKER)
+    return nil unless pos
+
+    return line[0, pos], _decode(line[pos + COMMAND_MARKER.length .. -1].chomp)
+  end
+end
+
+#-----------------------------------------------------------
+# Zenlog built-in commands.
+#-----------------------------------------------------------
+module BuiltIns
+  COMMAND_MARKER = "\x01\x09\x07\x03\x02\x05zenlog:"
+  #COMMAND_MARKER = "!zenlog:"
   COMMAND_START_MARKER = COMMAND_MARKER + 'START_COMMAND:'
   STOP_LOG_MARKER = COMMAND_MARKER + 'STOP_LOG:'
   STOP_LOG_ACK_MARKER = COMMAND_MARKER + 'STOP_LOG_ACK:'
