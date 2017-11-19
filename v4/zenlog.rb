@@ -184,13 +184,13 @@ module PipeHelper
   end
 
   def self._encode_single(s)
-    return s.to_s.gsub /[\n#{ESCAPE}#{SEPARATOR}]/o do
+    return s.to_s.gsub(/[\n#{ESCAPE}#{SEPARATOR}]/o) do
       |c| "#{ESCAPE}#{sprintf '%02x', c.ord}"
     end
   end
 
   def self._decode_single(s)
-    return s.gsub /#{ESCAPE}../o do
+    return s.gsub(/#{ESCAPE}../o) do
       |ehex| ehex[1..-1].to_i(16).chr
     end
   end
@@ -314,11 +314,11 @@ module BuiltIns
           out.print(PipeHelper.encode(STOP_COMMAND, fingerprint, exit_status))
         end
         if zenlog_working
-          wait_reply do |args|
+          wait_reply do |res_args|
             debug {"Reply args: #{args.inspect}"}
-            if (args[0] == STOP_COMMAND) && (args[1] == fingerprint)
+            if (res_args[0] == STOP_COMMAND) && (res_args[1] == fingerprint)
               # Print number of log lines.
-              print args[2], "\n" if want_lines
+              print res_args[2], "\n" if want_lines
               return true
             else
               return false
@@ -778,52 +778,54 @@ class ZenLogger
 
         pre_line, args = PipeHelper.try_decode(line)
 
-        if args
-          debug {"Args: #{args.inspect}\n"}
-          # Handle start request.
-          if args[0] == START_COMMAND
-            fingerprint = args[1]
-            command = args[2]
-            env = args[3]
+        to_write = args ? pre_line : line
+        if to_write
+          write_log to_write, ready_check:@logger_in
+        end
 
-            if !in_command
-              in_command = true
-              debug {"Command started: \"#{command}\"\n"}
-              start_logging(command, env)
-            else
-               say "zenlog: Command start requested but already in command: \"#{command}\"\n"
-            end
+        next unless args
 
-            @command_out.print(PipeHelper.encode(START_COMMAND, fingerprint))
-            next
+        debug {"Args: #{args.inspect}\n"}
+        # Handle start request.
+        if args[0] == START_COMMAND
+          fingerprint = args[1]
+          command = args[2]
+          env = args[3]
+
+          if !in_command
+            in_command = true
+            debug {"Command started: \"#{command}\"\n"}
+            start_logging(command, env)
+          else
+             say "zenlog: Command start requested but already in command: \"#{command}\"\n"
           end
 
-          # Handle stop request.
-          if args[0] == STOP_COMMAND
-            fingerprint = args[1]
-            exit_status = args[2]
-
-            if in_command
-              in_command = false
-              debug {"Command finished: #{fingerprint}, status=#{exit_status}\n"}
-
-              write_log(pre_line, flush:false) if pre_line
-              stop_logging exit_status
-            end
-            @command_out.print(PipeHelper.encode(STOP_COMMAND, fingerprint, @num_lines_written))
-            next
-          end
-
-          if args[0] == CHILD_FINISHED
-            on_child_finished
-            next
-          end
-
-          say "zenlog: Unknown command '#{args[0]}' received.\n"
+          @command_out.print(PipeHelper.encode(START_COMMAND, fingerprint))
           next
         end
 
-        write_log line, ready_check:@logger_in
+        # Handle stop request.
+        if args[0] == STOP_COMMAND
+          fingerprint = args[1]
+          exit_status = args[2]
+
+          if in_command
+            in_command = false
+            debug {"Command finished: #{fingerprint}, status=#{exit_status}\n"}
+
+            write_log(pre_line, flush:false) if pre_line
+            stop_logging exit_status
+          end
+          @command_out.print(PipeHelper.encode(STOP_COMMAND, fingerprint, @num_lines_written))
+          next
+        end
+
+        if args[0] == CHILD_FINISHED
+          on_child_finished
+          next
+        end
+
+        say "zenlog: Unknown command '#{args[0]}' received.\n"
       end
     rescue IOError => e
       say "zenlog: Error #{e}\n" if debug
@@ -898,7 +900,6 @@ class ZenStarter
 
     if !Dir.exist? @log_dir
       say "zenlog: #{@log_dir} doesn't exist.\n"
-      @log_dir
       start_emergency_shell
     end
 
