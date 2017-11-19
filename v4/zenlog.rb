@@ -109,7 +109,7 @@ module ZenCore
   end
 
   def get_tty_from_ps()
-    pstty = %x(ps -o tty -p $$ --no-header 2>/dev/null).chomp
+    pstty = %x(ps -o tty= -p $$ 2>/dev/null).chomp
     tty = '/dev/' + pstty
     return File.writable?(tty) ? tty : nil
   end
