@@ -58,7 +58,7 @@ function zenlog_last_log() {
 # Print the current command's command line.  Use with "zenlog start-command".
 function bash_last_command() {
   # Use echo to remove newlines.
-  echo $(HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//')
+  HISTTIMEFORMAT= history 1 | sed -e 's/^ *[0-9][0-9]* *//'
 }
 
 function bash_dump_env() {
