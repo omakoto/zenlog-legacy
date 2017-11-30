@@ -2,8 +2,12 @@
 
 . <("$ZENLOG_BIN" -s)
 
+env_filter() {
+    grep '^\(Command:\|Start time:\|Finish time:\|Duration:\|ZENLOG_PID=\)'
+}
+
 preexec() {
-  "$ZENLOG_BIN" start-command-with-env "$(bash_dump_env)" $(bash_last_command)
+  "$ZENLOG_BIN" start-command-with-env "$(bash_dump_env|env_filter)" $(bash_last_command)
 }
 
 prompt_command() {
