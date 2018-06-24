@@ -1,8 +1,8 @@
-# Zenlog
+# DEPRECATED
 
-New version is available [here](https://github.com/omakoto/zenlog-go).
+# New version is available [here](https://github.com/omakoto/zenlog).
 
-# Zenlog (deprecated)
+---
 
 Zenlog is a wrapper around a login shell to save all command output to a separate log file for each command automatically, so you no longer need to use tee(1) to save output in log files.
 
